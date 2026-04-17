@@ -1,0 +1,67 @@
+/* ADC Peptide Mapper — Custom Styles */
+
+/* ── Sidebar ── */
+.main-sidebar { background-color: #1a2940 !important; }
+.sidebar-menu > li > a { color: #c8d6e5 !important; font-size: 13.5px; }
+.sidebar-menu > li.active > a,
+.sidebar-menu > li > a:hover { background-color: #2e4a6e !important; color: #ffffff !important; }
+.brand-link { background-color: #0f1e30 !important; border-bottom: 1px solid #2e4a6e !important; }
+.brand-text { color: #e8f4fd !important; font-weight: 700 !important; font-size: 15px !important; }
+
+/* ── Content area ── */
+.content-wrapper { background-color: #f4f6f9 !important; }
+.content-header h1 { font-size: 20px; font-weight: 700; color: #1a2940; }
+
+/* ── Value boxes ── */
+.small-box { border-radius: 8px !important; box-shadow: 0 2px 8px rgba(0,0,0,0.12) !important; }
+.small-box h3 { font-size: 28px !important; }
+.small-box p  { font-size: 13px !important; }
+
+/* ── Cards ── */
+.card { border-radius: 8px !important; box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important; }
+.card-header { font-weight: 600 !important; font-size: 14px !important; }
+
+/* ── Unique peptide badge ── */
+.badge-unique    { background-color: #27ae60; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; }
+.badge-nonunique { background-color: #95a5a6; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; }
+
+/* ── DT table ── */
+.dataTables_wrapper { font-size: 12.5px; }
+table.dataTable thead th { background-color: #1a2940 !important; color: #ffffff !important; font-weight: 600; }
+table.dataTable tbody tr.unique-row { background-color: #eafaf1 !important; }
+table.dataTable tbody tr:hover { background-color: #d6eaf8 !important; }
+
+/* ── Buttons ── */
+.btn-download { background-color: #2980b9; color: #fff; border: none; border-radius: 5px; padding: 7px 16px; font-size: 13px; margin: 4px 2px; }
+.btn-download:hover { background-color: #1a6fa0; color: #fff; }
+.btn-run { background-color: #27ae60; color: #fff; border: none; border-radius: 5px; padding: 8px 20px; font-size: 14px; font-weight: 600; }
+.btn-run:hover { background-color: #1e8449; color: #fff; }
+
+/* ── Status boxes ── */
+.status-ok   { color: #27ae60; font-weight: 600; }
+.status-warn { color: #e67e22; font-weight: 600; }
+.status-err  { color: #e74c3c; font-weight: 600; }
+
+/* ── Mod table ── */
+.mod-table { font-size: 12px; width: 100%; }
+.mod-table th { background: #2c3e50; color: #fff; padding: 5px 8px; }
+.mod-table td { padding: 4px 8px; border-bottom: 1px solid #ecf0f1; }
+
+/* ── Progress ── */
+.progress { border-radius: 4px; height: 18px; }
+.progress-bar { font-size: 11px; line-height: 18px; }
+
+/* ── Section headers ── */
+.section-header {
+  font-size: 13px; font-weight: 700; color: #1a2940;
+  border-left: 4px solid #2980b9; padding-left: 8px;
+  margin: 14px 0 8px 0;
+}
+
+/* ── FASTA preview ── */
+.fasta-preview {
+  font-family: monospace; font-size: 11px;
+  background: #f8f9fa; border: 1px solid #dee2e6;
+  border-radius: 4px; padding: 8px; max-height: 120px;
+  overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+}

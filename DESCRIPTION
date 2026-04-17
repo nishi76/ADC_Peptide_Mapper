@@ -1,0 +1,18 @@
+Package: ADCPeptideMapper
+Title: ADC Peptide Mapper Shiny App
+Version: 0.5.0
+Description: In-silico tryptic digest, uniqueness checking, and Skyline
+    transition list generation for Antibody-Drug Conjugates.
+Depends:
+    R (>= 4.3.0)
+Imports:
+    shiny,
+    bs4Dash,
+    DT,
+    data.table,
+    openxlsx,
+    httr2,
+    stringr,
+    dplyr,
+    shinycssloaders,
+    shinyjs
