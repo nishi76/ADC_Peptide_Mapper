@@ -26,8 +26,3 @@ shiny::runApp("app.R")
 3. Peptide Results
 4. Transition List
 
-## Auto-Deploy (GitHub Actions)
-See `.github/workflows/deploy.yml`. Add these three secrets to your GitHub repo:
-- `SHINYAPPS_ACCOUNT` — your shinyapps.io username
-- `SHINYAPPS_TOKEN`   — from shinyapps.io > Account > Tokens
-- `SHINYAPPS_SECRET`  — from shinyapps.io > Account > Tokens
