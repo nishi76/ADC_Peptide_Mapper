@@ -1,6 +1,6 @@
 # ============================================================
 #  ADC Peptide Mapper v0.5 — R Shiny Application
-#  4-tab version: Digest | Modifications | Peptide Results | Transition List
+#  Digest | Modifications | Peptide Results | Transition List
 #  Author: Nishi Wase
 #  SETUP: Run build_background_db.R once to generate data/*.rds files.
 # ============================================================
