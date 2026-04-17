@@ -1,6 +1,6 @@
 # ADC Peptide Mapper v0.5
 
-**4-tab version** — In-silico tryptic digest, uniqueness checking, and Skyline transition list export.
+- Shiny app for in-silico tryptic digest, uniqueness checking, and Skyline transition list export.
 
 ## Features
 - FASTA upload (multi-chain ADC: HC + LC auto-detected)
