@@ -1,8 +1,21 @@
 # ============================================================
-#  ADC Peptide Mapper v0.5 — R Shiny Application
-#  Digest | Modifications | Peptide Results | Transition List
-#  Author: Nishi Wase
-#  SETUP: Run build_background_db.R once to generate data/*.rds files.
+# ADC Peptide Mapper v0.5 — R Shiny Application
+# Digest | Modifications | Peptide Results | Transition List
+# Author: Nishi Wase
+# SETUP: Run build_background_db.R once to generate data/*.rds files.
+#
+# COMPATIBILITY: bs4Dash >= 2.0.0 (tested on 2.3.x)
+# CHANGES FROM ORIGINAL (bs4Dash v2.x fixes):
+#   UI-1  bs4DashBrand()        → dashboardBrand()
+#   UI-2  freshTheme = NULL     → removed (arg no longer exists)
+#   UI-3  preloader color=      → removed (slot no longer exists)
+#   UI-4  bs4SidebarMenu(id=)   → removed id= argument
+#   UI-5  bs4TabItems()         → tabItems()
+#   UI-6  bs4TabItem()          → tabItem()
+#   UI-7  bs4ValueBoxOutput()   → valueBoxOutput()
+#   SRV-1 renderbs4ValueBox()   → renderValueBox()
+#   SRV-2 bs4ValueBox()         → valueBox()
+#   SRV-3 updatebs4TabItems()   → updateTabItems(inputId="sidebarMenu")
 # ============================================================
 
 library(shiny)
@@ -52,8 +65,8 @@ if (length(BUNDLED_BG) == 0)
 build_species_choices <- function() {
   choices <- list()
   for (key in names(BUNDLED_BG)) {
-    bg  <- BUNDLED_BG[[key]]
-    lbl <- sprintf("%s  (%s proteins | built %s)", bg$label,
+    bg <- BUNDLED_BG[[key]]
+    lbl <- sprintf("%s (%s proteins | built %s)", bg$label,
                    format(bg$n_proteins, big.mark = ","), bg$build_date)
     choices[[lbl]] <- key
   }
@@ -62,41 +75,55 @@ build_species_choices <- function() {
 }
 
 # ============================================================
-#  UI
+# UI
 # ============================================================
 ui <- bs4DashPage(
   title = "ADC Peptide Mapper",
-  freshTheme = NULL,
+  # FIX UI-2: freshTheme= removed in bs4Dash v2.x
+  # FIX UI-3: preloader color= slot removed in bs4Dash v2.x
   preloader = list(
-    html = tagList(tags$div(style = "text-align:center; padding-top:80px;",
-      tags$h4("ADC Peptide Mapper", style = "color:#1a2940; font-weight:700;"),
-      tags$p("Loading background databases...", style = "color:#7f8c8d;"))),
-    color = "#f4f6f9"),
+    html = tagList(
+      tags$div(style = "text-align:center; padding-top:80px;",
+               tags$h4("ADC Peptide Mapper", style = "color:#1a2940; font-weight:700;"),
+               tags$p("Loading background databases...", style = "color:#7f8c8d;"))
+    )
+  ),
 
+  # FIX UI-1: bs4DashBrand() removed in v2.x → use dashboardBrand()
   header = bs4DashNavbar(
-    title = bs4DashBrand(title = "ADC Peptide Mapper", color = "navy"),
-    skin  = "dark",
+    title = dashboardBrand(
+      title = "ADC Peptide Mapper",
+      color = "navy"
+    ),
+    skin = "dark",
     tags$li(class = "nav-item",
-      tags$span(style = "color:#c8d6e5; padding:15px 10px; font-size:12px;",
-        "In-silico Tryptic Digest & Transition List Generator"))),
+            tags$span(style = "color:#c8d6e5; padding:15px 10px; font-size:12px;",
+                      "In-silico Tryptic Digest & Transition List Generator"))
+  ),
 
   sidebar = bs4DashSidebar(
     skin = "dark", status = "navy",
-    bs4SidebarMenu(id = "sidebar_menu",
-      bs4SidebarMenuItem("Input & Setup",   tabName = "tab_input",   icon = icon("upload")),
-      bs4SidebarMenuItem("Modifications",   tabName = "tab_mods",    icon = icon("flask")),
-      bs4SidebarMenuItem("Peptide Results", tabName = "tab_results", icon = icon("table")),
-      bs4SidebarMenuItem("Transition List", tabName = "tab_trans",   icon = icon("list")),
-    )),
+    # FIX UI-4: id= argument removed in bs4Dash v2.x
+    # bs4Dash v2.x auto-assigns inputId "sidebarMenu" (used in updateTabItems below)
+    sidebarMenu(
+      id = "sidebarMenu",
+      menuItem("Input & Setup",    tabName = "tab_input",   icon = icon("upload")),
+      menuItem("Modifications",    tabName = "tab_mods",    icon = icon("flask")),
+      menuItem("Peptide Results",  tabName = "tab_results", icon = icon("table")),
+      menuItem("Transition List",  tabName = "tab_trans",   icon = icon("list"))
+    )
+  ),
 
   body = bs4DashBody(
     useShinyjs(),
     tags$head(tags$link(rel = "stylesheet", type = "text/css", href = "custom.css")),
 
-    bs4TabItems(
+    # FIX UI-5: bs4TabItems() → tabItems()
+    # FIX UI-6: bs4TabItem()  → tabItem()
+    tabItems(
 
       # ── TAB 1: INPUT & SETUP ──────────────────────────────────────────────
-      bs4TabItem(tabName = "tab_input",
+      tabItem(tabName = "tab_input",
         fluidRow(
           bs4Card(title = "ADC FASTA Input", width = 7, status = "navy", collapsible = FALSE,
             tags$div(class = "section-header", "Upload or paste your ADC FASTA sequence"),
@@ -105,21 +132,23 @@ ui <- bs4DashPage(
                 fileInput("fasta_file", "Upload FASTA file (.fasta / .fa / .txt)",
                           accept = c(".fasta", ".fa", ".txt"), placeholder = "No file selected"),
                 tags$small(class = "text-muted",
-                  "Multi-chain FASTA supported — each >header entry is a separate chain.")),
+                           "Multi-chain FASTA supported — each >header entry is a separate chain.")),
               tabPanel("Paste Sequence", br(),
                 textAreaInput("fasta_text", NULL, value = DEMO_FASTA, rows = 10, width = "100%"),
                 tags$small(class = "text-muted",
-                  "Demo: Trastuzumab HC + LC loaded. Replace with your ADC sequence."))
+                           "Demo: Trastuzumab HC + LC loaded. Replace with your ADC sequence."))
             ),
-            hr(), uiOutput("fasta_chain_preview")),
+            hr(), uiOutput("fasta_chain_preview")
+          ),
 
           bs4Card(title = "Background Proteome & Digest Settings", width = 5,
             status = "primary", collapsible = FALSE,
             tags$div(class = "section-header", "Enzyme & Cleavage Parameters"),
             tags$table(class = "mod-table", style = "margin-bottom:10px;",
-              tags$tr(tags$td(tags$b("Enzyme")),           tags$td("Trypsin (cleaves K/R, not before P)")),
+              tags$tr(tags$td(tags$b("Enzyme")),          tags$td("Trypsin (cleaves K/R, not before P)")),
               tags$tr(tags$td(tags$b("Missed Cleavages")), tags$td("0 (fixed)")),
-              tags$tr(tags$td(tags$b("Peptide Length")),   tags$td("6 – 30 amino acids (fixed)"))),
+              tags$tr(tags$td(tags$b("Peptide Length")),   tags$td("6 – 30 amino acids (fixed)"))
+            ),
             hr(),
             tags$div(class = "section-header", "Background Proteome"),
             selectInput("bg_species", "Select species background:",
@@ -132,82 +161,105 @@ ui <- bs4DashPage(
               selectInput("bg_missed_custom", "Missed cleavages for custom background:",
                           choices = c("0"=0,"1"=1,"2"=2), selected = 0),
               actionButton("btn_build_custom_bg", "Build Custom Background",
-                           class = "btn btn-warning btn-sm", icon = icon("cogs"))),
+                           class = "btn btn-warning btn-sm", icon = icon("cogs"))
+            ),
             hr(),
             tags$div(class = "section-header", "Background Missed Cleavages"),
             tags$p(style = "font-size:12px; color:#555; margin-bottom:4px;",
-              "For bundled databases, all MC levels (0/1/2) are pre-computed."),
+                   "For bundled databases, all MC levels (0/1/2) are pre-computed."),
             selectInput("bg_missed", "Use missed cleavage level:",
                         choices = c("0"="0","1"="1","2"="2"), selected = "0"),
-            hr(), uiOutput("bg_status_ui"))
+            hr(), uiOutput("bg_status_ui")
+          )
         ),
         fluidRow(
           bs4Card(title = "Run Digest", width = 12, status = "success", collapsible = FALSE,
             fluidRow(
               column(8, tags$p(style = "margin-top:6px; color:#555;",
-                "Select a background species, configure modifications, then click",
-                tags$b(" Run Digest"), " to generate peptides and check uniqueness.")),
+                               "Select a background species, configure modifications, then click",
+                               tags$b(" Run Digest"), " to generate peptides and check uniqueness.")),
               column(4, actionButton("btn_run_digest", "Run Digest & Uniqueness Check",
-                                     class = "btn-run", icon = icon("play"), width = "100%"))),
-            uiOutput("digest_status_ui")))
+                                     class = "btn-run", icon = icon("play"), width = "100%"))
+            ),
+            uiOutput("digest_status_ui")
+          )
+        )
       ),
 
       # ── TAB 2: MODIFICATIONS ──────────────────────────────────────────────
-      bs4TabItem(tabName = "tab_mods",
+      tabItem(tabName = "tab_mods",
         fluidRow(
           bs4Card(title = "Fixed Modifications (always applied)", width = 4,
             status = "danger", collapsible = FALSE,
             tags$table(class = "mod-table",
-              tags$thead(tags$tr(tags$th("Modification"), tags$th("Residue"), tags$th("Mass Shift (Da)"))),
-              tags$tbody(tags$tr(tags$td("Carbamidomethyl (CAM)"), tags$td("C"), tags$td("+57.02146")))),
+              tags$thead(tags$tr(
+                tags$th("Modification"), tags$th("Residue"), tags$th("Mass Shift (Da)")
+              )),
+              tags$tbody(tags$tr(
+                tags$td("Carbamidomethyl (CAM)"), tags$td("C"), tags$td("+57.02146")
+              ))
+            ),
             tags$small(class = "text-muted", style = "margin-top:8px; display:block;",
-              "CAM is always applied to all cysteine residues.")),
+                       "CAM is always applied to all cysteine residues.")
+          ),
 
           bs4Card(title = "Variable Modifications", width = 4, status = "warning", collapsible = FALSE,
             checkboxInput("mod_oxidation",    "Oxidation (M) +15.99491 Da",         value = TRUE),
-            checkboxInput("mod_propionamide", "Propionamide (C) +71.03711 Da",      value = FALSE),
-            checkboxInput("mod_nem",          "N-Ethylmaleimide (C) +125.04768 Da", value = FALSE),
+            checkboxInput("mod_propionamide", "Propionamide (C) +71.03711 Da",       value = FALSE),
+            checkboxInput("mod_nem",          "N-Ethylmaleimide (C) +125.04768 Da",  value = FALSE),
             hr(),
             checkboxInput("mod_drug_enable", "Drug-Linker Payload (C)", value = FALSE),
             conditionalPanel("input.mod_drug_enable",
               selectInput("drug_payload_key", "Select payload:",
-                choices = c("MMAE-linker (+715.3 Da)"="mmae","DM1-linker (+738.0 Da)"="dm1",
-                            "DXd-linker (+519.2 Da)"="dxd","SN-38-linker (+392.1 Da)"="sn38",
-                            "Custom mass"="custom_drug")),
+                          choices = c("MMAE-linker (+715.3 Da)"  = "mmae",
+                                      "DM1-linker (+738.0 Da)"   = "dm1",
+                                      "DXd-linker (+519.2 Da)"   = "dxd",
+                                      "SN-38-linker (+392.1 Da)" = "sn38",
+                                      "Custom mass"              = "custom_drug")),
               conditionalPanel("input.drug_payload_key == 'custom_drug'",
                 numericInput("custom_drug_mass", "Custom payload mass shift (Da):",
-                             value = 700, min = 0, step = 0.001)))),
+                             value = 700, min = 0, step = 0.001))
+            )
+          ),
 
           bs4Card(title = "Special Modifications", width = 4, status = "info", collapsible = FALSE,
             tags$div(class = "section-header", "Predefined"),
-            checkboxInput("mod_deamid_N",  "Deamidation (N) +0.98402 Da",         value = FALSE),
-            checkboxInput("mod_deamid_Q",  "Deamidation (Q) +0.98402 Da",         value = FALSE),
-            checkboxInput("mod_pyroglu_Q", "Pyroglutamate N-term Q -17.02655 Da", value = FALSE),
-            checkboxInput("mod_pyroglu_E", "Pyroglutamate N-term E -18.01056 Da", value = FALSE),
-            checkboxInput("mod_acetyl_K",  "Acetylation (K) +42.01057 Da",        value = FALSE),
-            checkboxInput("mod_phospho_S", "Phosphorylation (S) +79.96633 Da",    value = FALSE),
-            checkboxInput("mod_phospho_T", "Phosphorylation (T) +79.96633 Da",    value = FALSE),
-            checkboxInput("mod_phospho_Y", "Phosphorylation (Y) +79.96633 Da",    value = FALSE))
+            checkboxInput("mod_deamid_N",   "Deamidation (N) +0.98402 Da",           value = FALSE),
+            checkboxInput("mod_deamid_Q",   "Deamidation (Q) +0.98402 Da",           value = FALSE),
+            checkboxInput("mod_pyroglu_Q",  "Pyroglutamate N-term Q -17.02655 Da",   value = FALSE),
+            checkboxInput("mod_pyroglu_E",  "Pyroglutamate N-term E -18.01056 Da",   value = FALSE),
+            checkboxInput("mod_acetyl_K",   "Acetylation (K) +42.01057 Da",          value = FALSE),
+            checkboxInput("mod_phospho_S",  "Phosphorylation (S) +79.96633 Da",      value = FALSE),
+            checkboxInput("mod_phospho_T",  "Phosphorylation (T) +79.96633 Da",      value = FALSE),
+            checkboxInput("mod_phospho_Y",  "Phosphorylation (Y) +79.96633 Da",      value = FALSE)
+          )
         ),
         fluidRow(
           bs4Card(title = "Custom Modification Builder", width = 12,
             status = "secondary", collapsible = TRUE, collapsed = FALSE,
             fluidRow(
-              column(3, textInput("custom_mod_residue", "Residue (single letter):", placeholder = "e.g. K")),
-              column(4, textInput("custom_mod_name", "Modification Name:", placeholder = "e.g. Ubiquitination")),
-              column(3, numericInput("custom_mod_mass", "Mass Shift (Da):", value = 0, step = 0.001)),
+              column(3, textInput("custom_mod_residue", "Residue (single letter):",
+                                  placeholder = "e.g. K")),
+              column(4, textInput("custom_mod_name", "Modification Name:",
+                                  placeholder = "e.g. Ubiquitination")),
+              column(3, numericInput("custom_mod_mass", "Mass Shift (Da):",
+                                     value = 0, step = 0.001)),
               column(2, br(), actionButton("btn_add_custom_mod", "Add Mod",
-                                           class = "btn btn-primary", icon = icon("plus")))),
-            hr(), DTOutput("custom_mods_table")))
+                                           class = "btn btn-primary", icon = icon("plus")))
+            ),
+            hr(), DTOutput("custom_mods_table")
+          )
+        )
       ),
 
       # ── TAB 3: PEPTIDE RESULTS ────────────────────────────────────────────
-      bs4TabItem(tabName = "tab_results",
+      tabItem(tabName = "tab_results",
         fluidRow(
-          bs4ValueBoxOutput("vbox_total",    width = 3),
-          bs4ValueBoxOutput("vbox_unique",   width = 3),
-          bs4ValueBoxOutput("vbox_modified", width = 3),
-          bs4ValueBoxOutput("vbox_chains",   width = 3)
+          # FIX UI-7: bs4ValueBoxOutput() → valueBoxOutput()
+          valueBoxOutput("vbox_total",    width = 3),
+          valueBoxOutput("vbox_unique",   width = 3),
+          valueBoxOutput("vbox_modified", width = 3),
+          valueBoxOutput("vbox_chains",   width = 3)
         ),
         fluidRow(
           bs4Card(title = "Peptide Results", width = 12, status = "navy", collapsible = FALSE,
@@ -215,26 +267,35 @@ ui <- bs4DashPage(
               column(3, selectInput("filter_chain", "Filter by Chain:",
                                     choices = c("All Chains"="all"), selected = "all")),
               column(3, selectInput("filter_unique", "Uniqueness:",
-                                    choices = c("All Peptides"="all","Unique to ADC only"="unique",
-                                                "Non-unique only"="nonunique"), selected = "all")),
+                                    choices = c("All Peptides"      = "all",
+                                                "Unique to ADC only"= "unique",
+                                                "Non-unique only"   = "nonunique"),
+                                    selected = "all")),
               column(3, selectInput("filter_mods", "Modifications:",
-                                    choices = c("All"="all","Modified only"="modified",
-                                                "Unmodified only"="unmodified"), selected = "all")),
+                                    choices = c("All"             = "all",
+                                                "Modified only"   = "modified",
+                                                "Unmodified only" = "unmodified"),
+                                    selected = "all")),
               column(3, br(), downloadButton("dl_peptide_excel", "Download Excel Summary",
-                                             class = "btn-download"))),
+                                             class = "btn-download"))
+            ),
             hr(),
-            withSpinner(DTOutput("peptide_table"), type = 6, color = "#2980b9")))
+            withSpinner(DTOutput("peptide_table"), type = 6, color = "#2980b9")
+          )
+        )
       ),
 
       # ── TAB 4: TRANSITION LIST ────────────────────────────────────────────
-      bs4TabItem(tabName = "tab_trans",
+      tabItem(tabName = "tab_trans",
         fluidRow(
           bs4Card(title = "Transition List Settings", width = 4, status = "navy", collapsible = FALSE,
             tags$div(class = "section-header", "Instrument Mode"),
             radioButtons("trans_mode", NULL,
-              choices = list("Standard MRM (2+/3+, b/y ions, top 5)"="mrm",
-                             "High-Resolution (2+/3+/4+, b/y/a ions, top 6)"="hr"),
-              selected = "mrm"),
+                         choices = list(
+                           "Standard MRM (2+/3+, b/y ions, top 5)"       = "mrm",
+                           "High-Resolution (2+/3+/4+, b/y/a ions, top 6)" = "hr"
+                         ),
+                         selected = "mrm"),
             hr(),
             tags$div(class = "section-header", "Ion Parameters"),
             uiOutput("trans_params_ui"),
@@ -249,26 +310,30 @@ ui <- bs4DashPage(
             downloadButton("dl_skyline_unique", "Skyline CSV (Unique Only)",
                            class = "btn-download", style = "width:100%; margin-bottom:6px;"),
             br(),
-            downloadButton("dl_excel_full", "Excel Summary (All Sheets)",
-                           class = "btn-download", style = "width:100%;")),
+            downloadButton("dl_excel_full",     "Excel Summary (All Sheets)",
+                           class = "btn-download", style = "width:100%;")
+          ),
 
           bs4Card(title = "Transition List Preview", width = 8, status = "primary", collapsible = FALSE,
             uiOutput("trans_summary_ui"),
             hr(),
-            withSpinner(DTOutput("trans_table"), type = 6, color = "#2980b9")))
-      ),
+            withSpinner(DTOutput("trans_table"), type = 6, color = "#2980b9")
+          )
+        )
+      )
 
-    ) # end bs4TabItems
-  ),  # end body
+    ) # end tabItems
+  ), # end body
 
   footer = bs4DashFooter(
     left  = tags$span("ADC Peptide Mapper", style = "color:#7f8c8d; font-size:12px;"),
     right = tags$span("Monoisotopic masses | Trypsin KP/RP rule | UniProt Swiss-Prot backgrounds",
-                      style = "color:#7f8c8d; font-size:11px;"))
+                      style = "color:#7f8c8d; font-size:11px;")
+  )
 )
 
 # ============================================================
-#  SERVER
+# SERVER
 # ============================================================
 server <- function(input, output, session) {
 
@@ -278,10 +343,10 @@ server <- function(input, output, session) {
     bg_dt         = NULL,
     peptides_dt   = NULL,
     transition_dt = NULL,
-    custom_mods   = data.frame(residue=character(), name=character(),
-                                mass=numeric(), stringsAsFactors=FALSE),
+    custom_mods   = data.frame(residue = character(), name = character(),
+                               mass    = numeric(),   stringsAsFactors = FALSE),
     digest_done   = FALSE,
-    trans_done    = FALSE,
+    trans_done    = FALSE
   )
 
   # ── FASTA parsing ──────────────────────────────────────────────────────────
@@ -304,17 +369,23 @@ server <- function(input, output, session) {
       return(tags$p(class = "status-warn", "No valid FASTA detected yet."))
     rows <- lapply(seq_along(chains), function(i) {
       nm <- names(chains)[i]; sq <- chains[[nm]]
-      tags$tr(tags$td(tags$b(paste0("Chain ", i))),
-              tags$td(nm, style = "font-size:11px; color:#555;"),
-              tags$td(paste0(nchar(sq), " AA")),
-              tags$td(tags$div(class = "fasta-preview",
-                               substr(sq, 1, 60), if (nchar(sq) > 60) "..." else "")))
+      tags$tr(
+        tags$td(tags$b(paste0("Chain ", i))),
+        tags$td(nm, style = "font-size:11px; color:#555;"),
+        tags$td(paste0(nchar(sq), " AA")),
+        tags$td(tags$div(class = "fasta-preview",
+                         substr(sq, 1, 60), if (nchar(sq) > 60) "..." else ""))
+      )
     })
     tagList(
       tags$div(class = "section-header", paste0(length(chains), " chain(s) detected")),
       tags$table(class = "mod-table",
-        tags$thead(tags$tr(tags$th("#"), tags$th("Header"), tags$th("Length"), tags$th("Sequence Preview"))),
-        tags$tbody(rows)))
+        tags$thead(tags$tr(
+          tags$th("#"), tags$th("Header"), tags$th("Length"), tags$th("Sequence Preview")
+        )),
+        tags$tbody(rows)
+      )
+    )
   })
 
   # ── Background info ────────────────────────────────────────────────────────
@@ -324,11 +395,12 @@ server <- function(input, output, session) {
     if (is.null(bg)) return(tags$p(class = "status-warn", "Database not found."))
     mc_key <- as.character(input$bg_missed)
     n_pep  <- if (mc_key %in% names(bg$bg_sets))
-                format(nrow(bg$bg_sets[[mc_key]]), big.mark = ",") else "N/A"
+      format(nrow(bg$bg_sets[[mc_key]]), big.mark = ",") else "N/A"
     tags$div(style = "margin-top:8px;",
       tags$span(class = "status-ok", icon("circle-check"),
-        sprintf(" %s proteins | %s peptides (MC=%s) | Built: %s",
-                format(bg$n_proteins, big.mark=","), n_pep, mc_key, bg$build_date)))
+                sprintf(" %s proteins | %s peptides (MC=%s) | Built: %s",
+                        format(bg$n_proteins, big.mark=","), n_pep, mc_key, bg$build_date))
+    )
   })
 
   output$bg_status_ui <- renderUI({
@@ -358,14 +430,16 @@ server <- function(input, output, session) {
       tryCatch({
         setProgress(0.2, detail = "Digesting uploaded FASTA...")
         bg_obj <- build_background_from_fasta(
-          fasta_path       = input$bg_fasta_file$datapath,
-          missed_cleavages = as.integer(input$bg_missed_custom),
-          progress_cb      = function(msg) setProgress(0.7, detail = msg))
+          fasta_path        = input$bg_fasta_file$datapath,
+          missed_cleavages  = as.integer(input$bg_missed_custom),
+          progress_cb       = function(msg) setProgress(0.7, detail = msg)
+        )
         rv$bg_obj <- bg_obj
         setProgress(1, detail = "Done!")
-        showNotification(paste0("Custom background ready: ",
-                                format(bg_obj$n_proteins, big.mark=","), " proteins"),
-                         type = "message", duration = 5)
+        showNotification(
+          paste0("Custom background ready: ", format(bg_obj$n_proteins, big.mark=","), " proteins"),
+          type = "message", duration = 5
+        )
       }, error = function(e) {
         showNotification(paste("Error:", conditionMessage(e)), type = "error", duration = 10)
       })
@@ -386,8 +460,8 @@ server <- function(input, output, session) {
 
   # ── Custom mods ────────────────────────────────────────────────────────────
   observeEvent(input$btn_add_custom_mod, {
-    res <- toupper(trimws(input$custom_mod_residue))
-    nm  <- trimws(input$custom_mod_name)
+    res  <- toupper(trimws(input$custom_mod_residue))
+    nm   <- trimws(input$custom_mod_name)
     mass <- input$custom_mod_mass
     if (nchar(res) != 1 || !res %in% LETTERS) {
       showNotification("Residue must be a single letter (A-Z).", type = "warning"); return()
@@ -397,9 +471,9 @@ server <- function(input, output, session) {
     }
     rv$custom_mods <- rbind(rv$custom_mods,
                             data.frame(residue=res, name=nm, mass=mass, stringsAsFactors=FALSE))
-    updateTextInput(session, "custom_mod_residue", value = "")
-    updateTextInput(session, "custom_mod_name",    value = "")
-    updateNumericInput(session, "custom_mod_mass", value = 0)
+    updateTextInput(session,   "custom_mod_residue", value = "")
+    updateTextInput(session,   "custom_mod_name",    value = "")
+    updateNumericInput(session,"custom_mod_mass",    value = 0)
   })
 
   output$custom_mods_table <- renderDT({
@@ -407,8 +481,11 @@ server <- function(input, output, session) {
     if (nrow(df) == 0)
       return(datatable(data.frame(Message="No custom modifications added yet."),
                        options=list(dom="t"), rownames=FALSE))
-    df$Delete <- paste0('<button class="btn btn-danger btn-sm" onclick="Shiny.setInputValue(\'del_custom_mod\',',
-                        seq_len(nrow(df)), ', {priority:\'event\'})">Remove</button>')
+    df$Delete <- paste0(
+      '<button class="btn btn-danger btn-sm" ',
+      'onclick="Shiny.setInputValue(\'del_custom_mod\',', seq_len(nrow(df)),
+      ', {priority:\'event\'})">Remove</button>'
+    )
     datatable(df, escape=FALSE, rownames=FALSE,
               colnames=c("Residue","Name","Mass Shift (Da)",""),
               options=list(dom="t", pageLength=10))
@@ -426,22 +503,28 @@ server <- function(input, output, session) {
     if (isTRUE(input$mod_propionamide)) var_sel <- c(var_sel, "propionamide")
     if (isTRUE(input$mod_nem))          var_sel <- c(var_sel, "nem")
     if (isTRUE(input$mod_drug_enable))  var_sel <- c(var_sel, input$drug_payload_key)
+
     special_sel <- character(0)
-    if (isTRUE(input$mod_deamid_N))  special_sel <- c(special_sel, "deamid_N")
-    if (isTRUE(input$mod_deamid_Q))  special_sel <- c(special_sel, "deamid_Q")
-    if (isTRUE(input$mod_pyroglu_Q)) special_sel <- c(special_sel, "pyroglu_Q")
-    if (isTRUE(input$mod_pyroglu_E)) special_sel <- c(special_sel, "pyroglu_E")
-    if (isTRUE(input$mod_acetyl_K))  special_sel <- c(special_sel, "acetyl_K")
-    if (isTRUE(input$mod_phospho_S)) special_sel <- c(special_sel, "phospho_S")
-    if (isTRUE(input$mod_phospho_T)) special_sel <- c(special_sel, "phospho_T")
-    if (isTRUE(input$mod_phospho_Y)) special_sel <- c(special_sel, "phospho_Y")
+    if (isTRUE(input$mod_deamid_N))   special_sel <- c(special_sel, "deamid_N")
+    if (isTRUE(input$mod_deamid_Q))   special_sel <- c(special_sel, "deamid_Q")
+    if (isTRUE(input$mod_pyroglu_Q))  special_sel <- c(special_sel, "pyroglu_Q")
+    if (isTRUE(input$mod_pyroglu_E))  special_sel <- c(special_sel, "pyroglu_E")
+    if (isTRUE(input$mod_acetyl_K))   special_sel <- c(special_sel, "acetyl_K")
+    if (isTRUE(input$mod_phospho_S))  special_sel <- c(special_sel, "phospho_S")
+    if (isTRUE(input$mod_phospho_T))  special_sel <- c(special_sel, "phospho_T")
+    if (isTRUE(input$mod_phospho_Y))  special_sel <- c(special_sel, "phospho_Y")
+
     custom_drug_mass <- if (isTRUE(input$mod_drug_enable) &&
                             identical(input$drug_payload_key, "custom_drug"))
-                          input$custom_drug_mass else NA
-    build_active_mods(var_mods_selected=var_sel, drug_payload_key=NULL,
-                      custom_drug_mass=custom_drug_mass,
-                      special_mods_selected=special_sel,
-                      custom_mods_df=rv$custom_mods)
+      input$custom_drug_mass else NA
+
+    build_active_mods(
+      var_mods_selected     = var_sel,
+      drug_payload_key      = NULL,
+      custom_drug_mass      = custom_drug_mass,
+      special_mods_selected = special_sel,
+      custom_mods_df        = rv$custom_mods
+    )
   })
 
   # ── Run Digest ─────────────────────────────────────────────────────────────
@@ -460,6 +543,7 @@ server <- function(input, output, session) {
         if (nrow(base_dt) == 0) {
           showNotification("No peptides generated. Check your FASTA.", type="warning"); return()
         }
+
         setProgress(0.3, detail = "Applying modifications...")
         active_mods <- get_active_mods()
         all_rows <- list()
@@ -469,36 +553,46 @@ server <- function(input, output, session) {
           if (length(variants) == 0) next
           for (v in variants) {
             all_rows <- c(all_rows, list(data.table(
-              Chain            = pep$Chain,
-              ProteinName      = sub(" .*", "", pep$Chain),
-              Sequence         = pep$Sequence,
-              ModifiedSequence = v$modified_seq,
-              Start            = pep$Start,
-              End              = pep$End,
-              Length           = pep$Length,
-              ModsApplied      = v$mods_applied,
-              BaseMass         = pep$Mass,
-              ModifiedMass     = calc_modified_mass(pep$Mass, v$mass_delta)
+              Chain           = pep$Chain,
+              ProteinName     = sub(" .*", "", pep$Chain),
+              Sequence        = pep$Sequence,
+              ModifiedSequence= v$modified_seq,
+              Start           = pep$Start,
+              End             = pep$End,
+              Length          = pep$Length,
+              ModsApplied     = v$mods_applied,
+              BaseMass        = pep$Mass,
+              ModifiedMass    = calc_modified_mass(pep$Mass, v$mass_delta)
             )))
           }
         }
+
         setProgress(0.7, detail = "Checking uniqueness against background...")
         pep_dt <- rbindlist(all_rows)
         bg_dt  <- get_active_bg_dt()
         pep_dt[, UniqueToADC := flag_unique_peptides(Sequence, bg_dt)]
-        rv$peptides_dt   <- pep_dt
-        rv$digest_done   <- TRUE
-        rv$trans_done    <- FALSE
+
+        rv$peptides_dt  <- pep_dt
+        rv$digest_done  <- TRUE
+        rv$trans_done   <- FALSE
         rv$transition_dt <- NULL
+
         chains_found <- unique(pep_dt$Chain)
         updateSelectInput(session, "filter_chain",
                           choices  = c("All Chains"="all", setNames(chains_found, chains_found)),
                           selected = "all")
+
         setProgress(1, detail = "Done!")
-        showNotification(paste0("Digest complete: ", format(nrow(pep_dt), big.mark=","),
-                                " peptide variants | ", sum(pep_dt$UniqueToADC), " unique to ADC"),
-                         type="message", duration=6)
-        updatebs4TabItems(session, "sidebar_menu", selected="tab_results")
+        showNotification(
+          paste0("Digest complete: ", format(nrow(pep_dt), big.mark=","),
+                 " peptide variants | ", sum(pep_dt$UniqueToADC), " unique to ADC"),
+          type="message", duration=6
+        )
+
+        # FIX SRV-3: updatebs4TabItems() → updateTabItems() with correct inputId
+        # bs4Dash v2.x auto-assigns "sidebarMenu" as the menu inputId
+        updateTabItems(session, inputId = "sidebarMenu", selected = "tab_results")
+
       }, error = function(e) {
         showNotification(paste("Digest error:", conditionMessage(e)), type="error", duration=10)
       })
@@ -510,63 +604,93 @@ server <- function(input, output, session) {
     dt <- rv$peptides_dt
     tags$div(style="margin-top:10px;",
       tags$span(class="status-ok", icon("circle-check"),
-        sprintf(" %s peptide variants | %s unique sequences | %s unique to ADC",
-                format(nrow(dt), big.mark=","),
-                format(length(unique(dt$Sequence)), big.mark=","),
-                format(sum(dt$UniqueToADC), big.mark=","))))
+                sprintf(" %s peptide variants | %s unique sequences | %s unique to ADC",
+                        format(nrow(dt), big.mark=","),
+                        format(length(unique(dt$Sequence)), big.mark=","),
+                        format(sum(dt$UniqueToADC), big.mark=",")))
+    )
   })
 
   # ── Value boxes ────────────────────────────────────────────────────────────
-  output$vbox_total <- renderbs4ValueBox({
+  # FIX SRV-1: renderbs4ValueBox() → renderValueBox()
+  # FIX SRV-2: bs4ValueBox()       → valueBox()
+  output$vbox_total <- renderValueBox({
     n <- if (!is.null(rv$peptides_dt)) nrow(rv$peptides_dt) else 0
-    bs4ValueBox(value=format(n, big.mark=","), subtitle="Total Peptide Variants",
-                icon=icon("dna"), color="navy", elevation=2)
+    valueBox(value    = format(n, big.mark=","),
+             subtitle = "Total Peptide Variants",
+             icon     = icon("dna"),
+             color    = "navy",
+             elevation = 2)
   })
-  output$vbox_unique <- renderbs4ValueBox({
+  output$vbox_unique <- renderValueBox({
     n <- if (!is.null(rv$peptides_dt)) sum(rv$peptides_dt$UniqueToADC) else 0
-    bs4ValueBox(value=format(n, big.mark=","), subtitle="Unique to ADC",
-                icon=icon("star"), color="success", elevation=2)
+    valueBox(value    = format(n, big.mark=","),
+             subtitle = "Unique to ADC",
+             icon     = icon("star"),
+             color    = "success",
+             elevation = 2)
   })
-  output$vbox_modified <- renderbs4ValueBox({
+  output$vbox_modified <- renderValueBox({
     n <- if (!is.null(rv$peptides_dt)) sum(rv$peptides_dt$ModsApplied != "None") else 0
-    bs4ValueBox(value=format(n, big.mark=","), subtitle="Modified Variants",
-                icon=icon("flask"), color="warning", elevation=2)
+    valueBox(value    = format(n, big.mark=","),
+             subtitle = "Modified Variants",
+             icon     = icon("flask"),
+             color    = "warning",
+             elevation = 2)
   })
-  output$vbox_chains <- renderbs4ValueBox({
+  output$vbox_chains <- renderValueBox({
     n <- if (!is.null(rv$peptides_dt)) length(unique(rv$peptides_dt$Chain)) else 0
-    bs4ValueBox(value=n, subtitle="Chains Detected", icon=icon("link"), color="info", elevation=2)
+    valueBox(value    = n,
+             subtitle = "Chains Detected",
+             icon     = icon("link"),
+             color    = "info",
+             elevation = 2)
   })
 
   # ── Peptide results table ──────────────────────────────────────────────────
   filtered_peptides <- reactive({
     dt <- rv$peptides_dt; req(!is.null(dt))
-    if (input$filter_chain   != "all")        dt <- dt[dt$Chain == input$filter_chain, ]
-    if (input$filter_unique  == "unique")     dt <- dt[dt$UniqueToADC == TRUE, ]
-    if (input$filter_unique  == "nonunique")  dt <- dt[dt$UniqueToADC == FALSE, ]
-    if (input$filter_mods    == "modified")   dt <- dt[dt$ModsApplied != "None", ]
-    if (input$filter_mods    == "unmodified") dt <- dt[dt$ModsApplied == "None", ]
+    if (input$filter_chain  != "all")        dt <- dt[dt$Chain      == input$filter_chain, ]
+    if (input$filter_unique == "unique")     dt <- dt[dt$UniqueToADC == TRUE, ]
+    if (input$filter_unique == "nonunique")  dt <- dt[dt$UniqueToADC == FALSE, ]
+    if (input$filter_mods   == "modified")   dt <- dt[dt$ModsApplied != "None", ]
+    if (input$filter_mods   == "unmodified") dt <- dt[dt$ModsApplied == "None", ]
     dt
   })
 
   output$peptide_table <- renderDT({
     dt <- filtered_peptides(); req(!is.null(dt) && nrow(dt) > 0)
     display_df <- data.frame(
-      Chain=dt$Chain, `Peptide Sequence`=dt$Sequence, `Modified Sequence`=dt$ModifiedSequence,
-      Start=dt$Start, End=dt$End, Length=dt$Length, Modifications=dt$ModsApplied,
-      `Mass (Da)`=round(dt$ModifiedMass, 5),
-      `Unique to ADC`=ifelse(dt$UniqueToADC,
-        '<span class="badge-unique">Yes</span>',
-        '<span class="badge-nonunique">No</span>'),
-      check.names=FALSE, stringsAsFactors=FALSE)
+      Chain              = dt$Chain,
+      `Peptide Sequence` = dt$Sequence,
+      `Modified Sequence`= dt$ModifiedSequence,
+      Start              = dt$Start,
+      End                = dt$End,
+      Length             = dt$Length,
+      Modifications      = dt$ModsApplied,
+      `Mass (Da)`        = round(dt$ModifiedMass, 5),
+      `Unique to ADC`    = ifelse(dt$UniqueToADC,
+                                  '<span class="badge-unique">Yes</span>',
+                                  '<span class="badge-nonunique">No</span>'),
+      check.names=FALSE, stringsAsFactors=FALSE
+    )
     datatable(display_df, escape=FALSE, rownames=FALSE, filter="top",
               class="table table-hover table-sm",
-              options=list(pageLength=20, scrollX=TRUE, dom="Blfrtip",
-                           buttons=c("copy","csv"),
-                           columnDefs=list(list(className="dt-center", targets=c(3,4,5,8)),
-                                           list(width="200px", targets=2))),
+              options=list(
+                pageLength  = 20,
+                scrollX     = TRUE,
+                dom         = "Blfrtip",
+                buttons     = c("copy","csv"),
+                columnDefs  = list(
+                  list(className="dt-center", targets=c(3,4,5,8)),
+                  list(width="200px",         targets=2)
+                )
+              ),
               extensions="Buttons") |>
       formatStyle("Unique to ADC",
-                  backgroundColor=styleEqual('<span class="badge-unique">Yes</span>', "#eafaf1"))
+                  backgroundColor = styleEqual(
+                    '<span class="badge-unique">Yes</span>', "#eafaf1"
+                  ))
   })
 
   # ── Transition list ────────────────────────────────────────────────────────
@@ -576,13 +700,15 @@ server <- function(input, output, session) {
         tags$tr(tags$td("Precursor charges"), tags$td("2+, 3+")),
         tags$tr(tags$td("Ion types"),         tags$td("b, y")),
         tags$tr(tags$td("Ions per peptide"),  tags$td("Top 5 per charge")),
-        tags$tr(tags$td("CE formula"),        tags$td("Sciex empirical")))
+        tags$tr(tags$td("CE formula"),        tags$td("Sciex empirical"))
+      )
     } else {
       tags$table(class="mod-table",
         tags$tr(tags$td("Precursor charges"), tags$td("2+, 3+, 4+")),
         tags$tr(tags$td("Ion types"),         tags$td("b, y, a")),
         tags$tr(tags$td("Ions per peptide"),  tags$td("Top 6 per charge")),
-        tags$tr(tags$td("CE formula"),        tags$td("Sciex empirical")))
+        tags$tr(tags$td("CE formula"),        tags$td("Sciex empirical"))
+      )
     }
   })
 
@@ -591,12 +717,14 @@ server <- function(input, output, session) {
     withProgress(message = "Generating transition list...", value = 0, {
       tryCatch({
         setProgress(0.2, detail = "Calculating fragment ions...")
-        trans_dt         <- generate_transition_list(rv$peptides_dt, mode=input$trans_mode)
+        trans_dt        <- generate_transition_list(rv$peptides_dt, mode=input$trans_mode)
         rv$transition_dt <- trans_dt
-        rv$trans_done    <- TRUE
+        rv$trans_done   <- TRUE
         setProgress(1, detail = "Done!")
-        showNotification(paste0("Transition list: ", format(nrow(trans_dt), big.mark=","), " transitions"),
-                         type="message", duration=5)
+        showNotification(
+          paste0("Transition list: ", format(nrow(trans_dt), big.mark=","), " transitions"),
+          type="message", duration=5
+        )
       }, error = function(e) {
         showNotification(paste("Transition error:", conditionMessage(e)), type="error", duration=10)
       })
@@ -605,65 +733,86 @@ server <- function(input, output, session) {
 
   output$trans_summary_ui <- renderUI({
     if (!rv$trans_done || is.null(rv$transition_dt))
-      return(tags$p(class="status-warn", "Click 'Generate Transition List' to compute transitions."))
+      return(tags$p(class="status-warn",
+                    "Click 'Generate Transition List' to compute transitions."))
     dt <- rv$transition_dt
-    tags$div(tags$span(class="status-ok", icon("circle-check"),
-      sprintf(" %s transitions | %s precursors | %s peptides",
-              format(nrow(dt), big.mark=","),
-              format(length(unique(paste0(dt$PeptideSequence, dt$PrecursorCharge))), big.mark=","),
-              format(length(unique(dt$PeptideSequence)), big.mark=","))))
+    tags$div(
+      tags$span(class="status-ok", icon("circle-check"),
+                sprintf(" %s transitions | %s precursors | %s peptides",
+                        format(nrow(dt), big.mark=","),
+                        format(length(unique(paste0(dt$PeptideSequence, dt$PrecursorCharge))),
+                               big.mark=","),
+                        format(length(unique(dt$PeptideSequence)), big.mark=",")))
+    )
   })
 
   output$trans_table <- renderDT({
     req(rv$trans_done, !is.null(rv$transition_dt))
     dt <- rv$transition_dt
     display_df <- data.frame(
-      Protein=dt$ProteinName, Chain=dt$Chain, Peptide=dt$PeptideSequence,
-      `Modified Seq`=dt$ModifiedSequence, `z (prec)`=dt$PrecursorCharge,
-      `Prec m/z`=dt$PrecursorMz, Fragment=dt$FragmentIon, `Prod m/z`=dt$ProductMz,
-      `CE (eV)`=dt$CollisionEnergy,
-      Unique=ifelse(dt$UniqueToADC,
-        '<span class="badge-unique">Yes</span>',
-        '<span class="badge-nonunique">No</span>'),
-      check.names=FALSE, stringsAsFactors=FALSE)
+      Protein        = dt$ProteinName,
+      Chain          = dt$Chain,
+      Peptide        = dt$PeptideSequence,
+      `Modified Seq` = dt$ModifiedSequence,
+      `z (prec)`     = dt$PrecursorCharge,
+      `Prec m/z`     = dt$PrecursorMz,
+      Fragment       = dt$FragmentIon,
+      `Prod m/z`     = dt$ProductMz,
+      `CE (eV)`      = dt$CollisionEnergy,
+      Unique         = ifelse(dt$UniqueToADC,
+                              '<span class="badge-unique">Yes</span>',
+                              '<span class="badge-nonunique">No</span>'),
+      check.names=FALSE, stringsAsFactors=FALSE
+    )
     datatable(display_df, escape=FALSE, rownames=FALSE, filter="top",
               class="table table-hover table-sm",
-              options=list(pageLength=25, scrollX=TRUE, dom="Blfrtip",
-                           buttons=c("copy","csv"),
-                           columnDefs=list(list(className="dt-center", targets=c(4,5,6,7,8,9)))),
+              options=list(
+                pageLength = 25,
+                scrollX    = TRUE,
+                dom        = "Blfrtip",
+                buttons    = c("copy","csv"),
+                columnDefs = list(
+                  list(className="dt-center", targets=c(4,5,6,7,8,9))
+                )
+              ),
               extensions="Buttons")
   })
 
-  # ── Downloads (Tabs 3 & 4) ─────────────────────────────────────────────────
+  # ── Downloads ──────────────────────────────────────────────────────────────
   output$dl_skyline_all <- downloadHandler(
     filename = function() paste0("ADC_Skyline_AllPeptides_", Sys.Date(), ".csv"),
     content  = function(file) {
       req(!is.null(rv$transition_dt))
       file.copy(write_skyline_csv(rv$transition_dt, unique_only=FALSE), file)
-    })
+    }
+  )
   output$dl_skyline_unique <- downloadHandler(
     filename = function() paste0("ADC_Skyline_UniquePeptides_", Sys.Date(), ".csv"),
     content  = function(file) {
       req(!is.null(rv$transition_dt))
       tmp <- write_skyline_csv(rv$transition_dt, unique_only=TRUE)
-      if (is.null(tmp)) { showNotification("No unique peptides to export.", type="warning"); return() }
+      if (is.null(tmp)) {
+        showNotification("No unique peptides to export.", type="warning"); return()
+      }
       file.copy(tmp, file)
-    })
+    }
+  )
   output$dl_peptide_excel <- downloadHandler(
     filename = function() paste0("ADC_PeptideSummary_", Sys.Date(), ".xlsx"),
     content  = function(file) {
       req(!is.null(rv$peptides_dt))
       file.copy(write_excel_summary(rv$peptides_dt, rv$transition_dt), file)
-    })
+    }
+  )
   output$dl_excel_full <- downloadHandler(
     filename = function() paste0("ADC_FullReport_", Sys.Date(), ".xlsx"),
     content  = function(file) {
       req(!is.null(rv$peptides_dt))
       file.copy(write_excel_summary(rv$peptides_dt, rv$transition_dt), file)
-    })
+    }
+  )
 
 } # end server
 
 # ── Launch ─────────────────────────────────────────────────────────────────────
 shinyApp(ui = ui, server = server)
-
