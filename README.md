@@ -69,6 +69,8 @@ install.packages(c(
 The app requires pre-built proteome background databases for uniqueness checking.
 Run this script once after installation — it downloads from UniProt and caches locally:
 
+## once you start this, go on a coffee-break and come back after 20 mins. 
+
 ```r
 source("build_background_db.R")
 ```
