@@ -1,28 +1,156 @@
-# ADC Peptide Mapper v0.5
+# ADC Peptide Mapper
 
-- Shiny app for in-silico tryptic digest, uniqueness checking, and Skyline transition list export.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![R Shiny](https://img.shields.io/badge/Built%20with-R%20Shiny-276DC3?logo=r)](https://shiny.posit.co/)
+[![Version](https://img.shields.io/badge/Version-0.5-brightgreen.svg)]()
 
-## Features
-- FASTA upload (multi-chain ADC: HC + LC auto-detected)
-- Trypsin digest (KP/RP rule, 0 missed cleavages, 6-30 AA)
-- Fixed mod: Carbamidomethylation (CAM, +57.021 Da on C)
-- Variable mods: Oxidation (M), Propionamide (C), NEM (C), Drug-linker payloads (MMAE/DM1/DXd/SN-38/custom)
-- Special mods: Deamidation, Pyroglutamate, Acetylation, Phosphorylation, custom builder
-- Uniqueness check vs pre-built Human / Cynomolgus Monkey / Rat backgrounds (MC=0/1/2)
-- Skyline CSV export (MRM and HR modes) + Excel summary
+An R Shiny application for in-silico tryptic digestion of Antibody-Drug Conjugate (ADC) sequences, uniqueness checking against pre-built proteome backgrounds, and Skyline-compatible transition list generation for LC-MS/MS method development.
 
-## Setup
+**Author:** Nishikant Wase Â· nishikant.wase@gmail.com
+
+---
+
+## Installation
+
+This is an R Shiny application. Choose one of the three options below.
+
+### Option 1 â Clone with Git *(recommended)*
+
+```bash
+git clone https://github.com/nishi76/ADC_Peptide_Mapper.git
+cd ADC_Peptide_Mapper
+```
+
+Then launch from R or RStudio:
 
 ```r
-install.packages(c("shiny","bs4Dash","DT","data.table","openxlsx",
-                   "httr2","stringr","dplyr","shinycssloaders","shinyjs"))
-source("build_background_db.R")   # one-time, ~10 min
 shiny::runApp("app.R")
 ```
 
-## Tabs
-1. Input & Setup
-2. Modifications
-3. Peptide Results
-4. Transition List
+### Option 2 â Install from GitHub with `remotes`
 
+```r
+# Install remotes if you don't have it
+install.packages("remotes")
+
+# Install the app from GitHub
+remotes::install_github("nishi76/ADC_Peptide_Mapper")
+
+# Launch
+ADCPeptideMapper::run_app()
+```
+
+### Option 3 â Download ZIP
+
+Click **Code â Download ZIP** on this page, unzip, then:
+
+```r
+setwd("path/to/ADC_Peptide_Mapper")
+shiny::runApp("app.R")
+```
+
+---
+
+## Dependencies
+
+Install required R packages once before launching:
+
+```r
+install.packages(c(
+  "shiny", "bs4Dash", "DT", "data.table", "openxlsx",
+  "httr2", "stringr", "dplyr", "shinycssloaders", "shinyjs"
+))
+```
+
+---
+
+## Background Databases *(one-time setup, ~10 min)*
+
+The app requires pre-built proteome background databases for uniqueness checking.
+Run this script once after installation â it downloads from UniProt and caches locally:
+
+```r
+source("build_background_db.R")
+```
+
+This generates three files in the `data/` folder:
+
+| File | Species | Proteins |
+|------|---------|----------|
+| `bg_human.rds` | Human (*Homo sapiens*, UniProt Swiss-Prot reviewed) | ~20,442 |
+| `bg_monkey.rds` | Cynomolgus Monkey | ~1,177 |
+| `bg_rat.rds` | Rat (*Rattus norvegicus*) | ~8,231 |
+
+---
+
+## Features
+
+- **FASTA input** â file upload or paste; multi-chain ADC (HC + LC) auto-detected
+- **Trypsin digest** â KP/RP rule enforced, 0 missed cleavages, 6â30 AA peptides
+- **Fixed mod** â Carbamidomethylation (CAM) on all C (+57.021 Da)
+- **Variable mods** â Oxidation (M), Propionamide (C), NEM (C), Drug-linker payloads (MMAE / DM1 / DXd / SN-38 / custom Da)
+- **Special mods** â Deamidation, Pyroglutamate, Acetylation, Phosphorylation, custom builder
+- **Uniqueness check** â flags peptides absent from Human / Cynomolgus Monkey / Rat backgrounds at MC = 0, 1, or 2
+- **Transition list** â MRM (2+/3+, b/y, top 5) and HR (2+/3+/4+, b/y/a, top 6) modes with auto-calculated collision energies
+- **Export** â Skyline CSV (all peptides or unique only) + Excel summary workbook
+
+---
+
+## App Tabs
+
+| Tab | Purpose |
+|-----|---------|
+| **1. Input & Setup** | FASTA input, background species selection, run digest |
+| **2. Modifications** | Fixed / variable / special / custom modifications |
+| **3. Peptide Results** | Filterable table with uniqueness flags, Excel download |
+| **4. Transition List** | MRM / HR mode, Skyline CSV download |
+
+---
+
+## Project Structure
+
+```
+ADC_Peptide_Mapper/
+âââ app.R                    # Main Shiny app (UI + server)
+âââ build_background_db.R    # One-time background database builder
+âââ DESCRIPTION              # Package metadata
+âââ CITATION.cff             # Citation metadata
+âââ R/
+â   âââ digest.R             # Trypsin digestion engine
+â   âââ modifications.R      # Modification mass tables and logic
+â   âââ transitions.R        # Fragment ion calculation + collision energy
+â   âââ uniqueness.R         # Background proteome comparison
+â   âââ export.R             # Skyline CSV + Excel export
+âââ data/                    # Background RDS files (generated by build_background_db.R)
+âââ www/
+    âââ custom.css           # UI styling
+```
+
+---
+
+## Citation
+
+If you use ADC Peptide Mapper in your research, please cite:
+
+> Wase, N. (2026). *ADC Peptide Mapper* (Version 0.5) [R Shiny application].
+> GitHub. https://github.com/nishi76/ADC_Peptide_Mapper
+
+BibTeX:
+
+```bibtex
+@software{wase_adc_peptide_mapper_2026,
+  author    = {Wase, Nishikant},
+  title     = {{ADC Peptide Mapper}},
+  version   = {0.5},
+  year      = {2026},
+  month     = apr,
+  publisher = {GitHub},
+  url       = {https://github.com/nishi76/ADC_Peptide_Mapper}
+}
+```
+
+---
+
+## License
+
+MIT Â© Nishikant Wase
