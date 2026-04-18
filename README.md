@@ -14,7 +14,7 @@ An R Shiny application for in-silico tryptic digestion of Antibody-Drug Conjugat
 
 This is an R Shiny application. Choose one of the three options below.
 
-### Option 1 â Clone with Git *(recommended)*
+### Option 1 : Clone with Git *(recommended)*
 
 ```bash
 git clone https://github.com/nishi76/ADC_Peptide_Mapper.git
@@ -27,7 +27,7 @@ Then launch from R or RStudio:
 shiny::runApp("app.R")
 ```
 
-### Option 2 â Install from GitHub with `remotes`
+### Option 2 : Install from GitHub with `remotes`
 
 ```r
 # Install remotes if you don't have it
@@ -40,9 +40,9 @@ remotes::install_github("nishi76/ADC_Peptide_Mapper")
 ADCPeptideMapper::run_app()
 ```
 
-### Option 3 â Download ZIP
+### Option 3 : Download ZIP
 
-Click **Code â Download ZIP** on this page, unzip, then:
+Click **Code : Download ZIP** on this page, unzip, then:
 
 ```r
 setwd("path/to/ADC_Peptide_Mapper")
