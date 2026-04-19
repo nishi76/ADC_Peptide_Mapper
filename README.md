@@ -4,7 +4,7 @@
 [![R Shiny](https://img.shields.io/badge/Built%20with-R%20Shiny-276DC3?logo=r)](https://shiny.posit.co/)
 [![Version](https://img.shields.io/badge/Version-0.5-brightgreen.svg)]()
 
-An R Shiny application for in-silico tryptic digestion of Antibody-Drug Conjugate (ADC) sequences, uniqueness checking against pre-built proteome backgrounds, and Skyline-compatible transition list generation for LC-MS/MS method development. This tool is build with Ai assisted coding.  
+An R Shiny application for in-silico tryptic digestion of Antibody-Drug Conjugate (ADC) sequences, uniqueness checking against pre-built proteome backgrounds, and Skyline-compatible transition list generation for LC-MS/MS method development. This tool is build with Ai assisted code review and debugging.  
 
 **Author:** Nishikant Wase · nishikant.wase@gmail.com
 
