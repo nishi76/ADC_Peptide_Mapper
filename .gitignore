@@ -1,0 +1,6 @@
+data/*.rds
+.Renviron
+rsconnect/
+.claude/
+*.log
+*.pdf
