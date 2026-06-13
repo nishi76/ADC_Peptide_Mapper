@@ -1,0 +1,10 @@
+name: ADC_Peptide_Mapper
+title:
+username: nishi-76
+account: nishi-76
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 17506021
+bundleId: 12124448
+url: https://nishiw.shinyapps.io/ADC_Peptide_Mapper/
+version: 1

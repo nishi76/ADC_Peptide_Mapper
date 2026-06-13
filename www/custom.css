@@ -1,67 +1,214 @@
-/* ADC Peptide Mapper — Custom Styles */
+/* =============================================================================
+   ADC Peptide Mapper v0.8 — custom.css
+   ============================================================================= */
 
-/* ── Sidebar ── */
-.main-sidebar { background-color: #1a2940 !important; }
-.sidebar-menu > li > a { color: #c8d6e5 !important; font-size: 13.5px; }
-.sidebar-menu > li.active > a,
-.sidebar-menu > li > a:hover { background-color: #2e4a6e !important; color: #ffffff !important; }
-.brand-link { background-color: #0f1e30 !important; border-bottom: 1px solid #2e4a6e !important; }
-.brand-text { color: #e8f4fd !important; font-weight: 700 !important; font-size: 15px !important; }
-
-/* ── Content area ── */
-.content-wrapper { background-color: #f4f6f9 !important; }
-.content-header h1 { font-size: 20px; font-weight: 700; color: #1a2940; }
-
-/* ── Value boxes ── */
-.small-box { border-radius: 8px !important; box-shadow: 0 2px 8px rgba(0,0,0,0.12) !important; }
-.small-box h3 { font-size: 28px !important; }
-.small-box p  { font-size: 13px !important; }
-
-/* ── Cards ── */
-.card { border-radius: 8px !important; box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important; }
-.card-header { font-weight: 600 !important; font-size: 14px !important; }
-
-/* ── Unique peptide badge ── */
-.badge-unique    { background-color: #27ae60; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; }
-.badge-nonunique { background-color: #95a5a6; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; }
-
-/* ── DT table ── */
-.dataTables_wrapper { font-size: 12.5px; }
-table.dataTable thead th { background-color: #1a2940 !important; color: #ffffff !important; font-weight: 600; }
-table.dataTable tbody tr.unique-row { background-color: #eafaf1 !important; }
-table.dataTable tbody tr:hover { background-color: #d6eaf8 !important; }
-
-/* ── Buttons ── */
-.btn-download { background-color: #2980b9; color: #fff; border: none; border-radius: 5px; padding: 7px 16px; font-size: 13px; margin: 4px 2px; }
-.btn-download:hover { background-color: #1a6fa0; color: #fff; }
-.btn-run { background-color: #27ae60; color: #fff; border: none; border-radius: 5px; padding: 8px 20px; font-size: 14px; font-weight: 600; }
-.btn-run:hover { background-color: #1e8449; color: #fff; }
-
-/* ── Status boxes ── */
-.status-ok   { color: #27ae60; font-weight: 600; }
-.status-warn { color: #e67e22; font-weight: 600; }
-.status-err  { color: #e74c3c; font-weight: 600; }
-
-/* ── Mod table ── */
-.mod-table { font-size: 12px; width: 100%; }
-.mod-table th { background: #2c3e50; color: #fff; padding: 5px 8px; }
-.mod-table td { padding: 4px 8px; border-bottom: 1px solid #ecf0f1; }
-
-/* ── Progress ── */
-.progress { border-radius: 4px; height: 18px; }
-.progress-bar { font-size: 11px; line-height: 18px; }
-
-/* ── Section headers ── */
-.section-header {
-  font-size: 13px; font-weight: 700; color: #1a2940;
-  border-left: 4px solid #2980b9; padding-left: 8px;
-  margin: 14px 0 8px 0;
+/* ── General layout ────────────────────────────────────────────────────────── */
+.content-wrapper, .main-sidebar, .sidebar {
+  min-height: calc(100vh - 56px);
 }
 
-/* ── FASTA preview ── */
-.fasta-preview {
-  font-family: monospace; font-size: 11px;
-  background: #f8f9fa; border: 1px solid #dee2e6;
-  border-radius: 4px; padding: 8px; max-height: 120px;
-  overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+/* Citation footer sits below the nav menu with a divider */
+.sidebar-citation {
+  margin: 20px 0 0 0;
+  padding: 10px 12px 14px 12px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  font-size: 11px;
+  color: rgba(255,255,255,0.65);
+  line-height: 1.6;
+}
+
+.section-header {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #5d6d7e;
+  margin-bottom: 8px;
+}
+
+.btn-run {
+  background-color: #27ae60 !important;
+  color: #fff !important;
+  font-weight: 700;
+  border: none;
+}
+.btn-run:hover {
+  background-color: #1e8449 !important;
+}
+
+.mod-table th {
+  font-size: 11px;
+  color: #7f8c8d;
+  font-weight: 600;
+}
+.mod-table td {
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
+/* ── DT table tweaks ────────────────────────────────────────────────────────── */
+.dataTables_wrapper .dataTables_length select,
+.dataTables_wrapper .dataTables_filter input {
+  font-size: 12px;
+}
+
+/* =============================================================================
+   AI ASSISTANT CHAT (Tab 7)
+   ============================================================================= */
+
+/* Chat container */
+#chat_box {
+  height: 460px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scroll-behavior: smooth;
+}
+
+/* Individual message bubbles */
+.chat-msg {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  max-width: 92%;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+
+.chat-msg.user  { align-self: flex-end; flex-direction: row-reverse; }
+.chat-msg.assistant { align-self: flex-start; }
+
+/* Avatar circles */
+.chat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+.chat-msg.user .chat-avatar      { background: #2c3e50; color: #fff; }
+.chat-msg.assistant .chat-avatar { background: #2980b9; color: #fff; }
+
+/* Bubble body */
+.chat-bubble {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 100%;
+  word-wrap: break-word;
+}
+.chat-msg.user .chat-bubble {
+  background: #2c3e50;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-msg.assistant .chat-bubble {
+  background: #fff;
+  color: #2c3e50;
+  border: 1px solid #dee2e6;
+  border-bottom-left-radius: 4px;
+}
+
+/* Code spans inside assistant messages */
+.chat-bubble code {
+  background: #ecf0f1;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #c0392b;
+}
+
+/* Typing indicator */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 12px 14px;
+  align-items: center;
+}
+.typing-indicator span {
+  width: 8px; height: 8px;
+  background: #95a5a6;
+  border-radius: 50%;
+  animation: bounce 1.2s ease-in-out infinite;
+}
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30%           { transform: translateY(-8px); }
+}
+
+/* Input row */
+#chat_input_row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: flex-end;
+}
+#chat_input_row textarea {
+  flex: 1;
+  resize: none;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+  padding: 10px 12px;
+  line-height: 1.4;
+  transition: border-color 0.15s;
+}
+#chat_input_row textarea:focus {
+  outline: none;
+  border-color: #2980b9;
+  box-shadow: 0 0 0 2px rgba(41,128,185,0.15);
+}
+#btn_chat_send {
+  background: #2980b9;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+#btn_chat_send:hover  { background: #1f618d; }
+#btn_chat_send:active { background: #154360; }
+#btn_chat_send:disabled { background: #95a5a6; cursor: not-allowed; }
+
+/* Context badge strip */
+.context-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 4px;
+  margin-bottom: 4px;
+}
+.context-badge.active   { background: #d5f5e3; color: #1e8449; }
+.context-badge.inactive { background: #f2f3f4; color: #95a5a6; }
+
+/* API key panel */
+#apikey_panel {
+  background: #fef9e7;
+  border: 1px solid #f9e79f;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+#apikey_panel .apikey-note {
+  color: #7d6608;
+  margin-top: 6px;
 }

@@ -1,0 +1,404 @@
+---
+title: "ADC Peptide Mapper: A Workflow Guide"
+subtitle: "From FASTA to MRM Transition List"
+author: "Nishikant Wase"
+date: "June 2026"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    latex_engine: xelatex
+    highlight: null
+geometry: "margin=2.5cm"
+fontsize: 11pt
+linestretch: 1.2
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{hyperref}
+  - \hypersetup{colorlinks=false, pdfborder={0 0 0}}
+  - \usepackage{microtype}
+  - \usepackage{parskip}
+  - \setlength{\parindent}{0pt}
+vignette: >
+  %\VignetteIndexEntry{ADC Peptide Mapper: A Workflow Guide}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE, message = FALSE, warning = FALSE)
+```
+
+# Overview
+
+ADC Peptide Mapper is an R Shiny application for in-silico peptide mapping of
+Antibody-Drug Conjugates (ADCs). Starting from a FASTA sequence, it performs
+enzymatic digestion, uniqueness checking against human / cynomolgus monkey / rat
+proteome backgrounds, Drug-to-Antibody Ratio (DAR) distribution modelling, and
+instrument-specific MRM/DIA transition list generation.
+
+This vignette walks through the complete workflow for Trastuzumab-DXd using the
+built-in demo sequence.
+
+**Permanent DOI:** \url{https://doi.org/10.5281/zenodo.20681412}
+
+---
+
+# Installation
+
+## R Packages
+
+```{r install}
+install.packages(c(
+  "shiny", "bs4Dash", "DT", "data.table", "openxlsx",
+  "httr2", "stringr", "dplyr", "shinyjs", "htmltools"
+))
+```
+
+## Build Background Databases (one-time)
+
+The uniqueness filter requires pre-digested reference proteomes. Build them once
+before launching the app. An internet connection is required; the download takes
+approximately 10 minutes.
+
+```{r build-bg}
+setwd("path/to/ADC_Peptide_Mapper_v0.8")
+source("build_background_db.R")
+```
+
+This creates three files in `data/`:
+
+- `bg_human.rds` --- Human (Homo sapiens), ~20,400 UniProt Swiss-Prot proteins
+- `bg_monkey.rds` --- Cynomolgus monkey (Macaca fascicularis), ~1,200 proteins
+- `bg_rat.rds` --- Rat (Rattus norvegicus), ~8,200 proteins
+
+Files from a previous v0.7 installation can be reused without rebuilding.
+
+## Launch
+
+```{r launch}
+shiny::runApp("app.R")
+```
+
+The app opens in your default browser. A built-in Trastuzumab heavy chain + light
+chain FASTA is pre-loaded so you can explore the workflow immediately.
+
+---
+
+# Workflow Step 1: Input and Setup (Tab 1)
+
+## Load the ADC Sequence
+
+Two input modes are available:
+
+- **Upload File** --- upload a `.fasta`, `.fa`, or `.txt` file containing one or
+  more `>header / sequence` entries. Each entry is treated as a separate chain.
+- **Paste Sequence** --- paste FASTA text directly. The demo Trastuzumab sequence
+  is pre-loaded; replace it with your own ADC.
+
+A chain preview table appears after parsing, confirming the number of chains, their
+headers, lengths (AA), and first 60 residues.
+
+**ADC Name:** enter a short identifier (e.g.\ `Trastuzumab-DXd`). This is used in
+all output filenames and as the `ADCName` column in exported transition lists.
+
+## Digest Settings
+
+| Setting | Recommended for tryptic mapping | Notes |
+|---|---|---|
+| Primary enzyme | Trypsin | Cleaves after K/R, not before P |
+| Second enzyme | None | Set to Lys-C for Trypsin+Lys-C |
+| Missed cleavages | 0 or 1 | 0 for standard mapping; 1 to increase coverage |
+| Peptide length filter | 6--30 AA | Fixed; cannot be changed |
+
+## Background Proteome
+
+Select **Human (Homo sapiens)** for human ADC PK studies. For preclinical species
+comparison, select Cynomolgus Monkey or Rat. A custom FASTA upload is available for
+other species.
+
+The **Use missed cleavage level** dropdown for the background sets how many missed
+cleavages were allowed when the background was digested. Setting it to match the
+digest missed cleavage level gives the most conservative (strictest) uniqueness call.
+
+## Run Digest
+
+Click **Run Digest \& Uniqueness Check** (at the bottom of the FASTA Input card).
+The app digests all chains, applies modifications, checks uniqueness against the
+selected background, and navigates to Tab 3. A notification reports:
+
+- Total peptide variants generated
+- Number unique to the ADC (not in background)
+
+---
+
+# Workflow Step 2: Modifications (Tab 2)
+
+## Fixed and Variable Modifications
+
+Carbamidomethylation (+57.021 Da on C) is always applied. Select variable
+modifications to include in the digest:
+
+- **Oxidation (M)** --- standard variable mod for methionine sulfoxide
+- **Drug-Linker Payload** --- select from the ADCDB dropdown (MMAE, DM1, DXd, SN-38,
+  etc.) or enter a custom mass shift. Applied to cysteine (C) residues at conjugation
+  sites.
+
+## Linker Biotransformation Modifications
+
+For ADC linker stability studies, enable one or more biotransformation mods:
+
+| Modification | Mass shift | Scientific context |
+|---|---|---|
+| Maleimide ring hydrolysis | +18.011 Da on C | Succinimide-thioether hydrolysis in plasma |
+| Succinimide ring-opening | +18.011 Da on C | Ring-opened adduct at pH 7.4 |
+| Thioether to sulfoxide | +15.995 Da on C | Oxidative stress |
+| Disulfide loss | -31.990 Da on C | Retro-Michael elimination |
+| Conjugation-site deamidation | +0.984 Da on N | Asn deamidation near conjugation site |
+
+These appear as separate peptide variants in the Tab 3 table and in the transition list.
+
+## DAR Distribution Settings
+
+Set the conjugation chemistry and maximum DAR level. The app generates separate
+precursor entries for each DAR species (DAR0, DAR1, ..., DARn), each with the
+appropriate number of drug-linker mass units added to conjugated peptide(s).
+
+---
+
+# Workflow Step 3: Peptide Results (Tab 3)
+
+## Interpreting the Peptide Table
+
+The table columns are:
+
+| Column | Description |
+|---|---|
+| Chain | FASTA header of the source chain |
+| Peptide Sequence | Unmodified sequence |
+| Modified Sequence | Sequence with brackets, e.g.\ `CASC[CAM]K` |
+| Start / End | 1-based positions in the chain |
+| Length | Number of amino acids |
+| Modifications | Applied PTMs, e.g.\ `CAM@C3; DXd@C3` |
+| Mass (Da) | Monoisotopic mass |
+| Unique to ADC | Navy badge = unique; grey badge = found in background |
+
+## Filtering
+
+Use the dropdown filters above the table to restrict to:
+
+- A specific chain (Heavy Chain, Light Chain)
+- Unique peptides only (preferred for bioanalytical method development)
+- Modified peptides only
+
+## Sequence Coverage Map
+
+The coverage map card appears below the table after the digest. Use it to:
+
+- Identify gaps (regions not covered by any peptide in the 6--30 AA window)
+- Colour by uniqueness to see which regions have ADC-specific peptides
+- Increase missed cleavages in Tab 1 to close coverage gaps
+
+Download the map as a 300 dpi PNG for use in reports.
+
+## Cross-Species Co-Uniqueness
+
+For multi-species PK/TK studies, use the **Co-uniqueness Check** panel to identify
+peptides unique across all selected species simultaneously. This prevents selection of
+surrogate peptides that cross-react with the preclinical species matrix proteome.
+
+---
+
+# Workflow Step 4: Transition List (Tab 4)
+
+## Instrument Selection
+
+Select the target instrument platform from the dropdown. The app adjusts the collision
+energy formula and CSV column layout automatically:
+
+| Platform | CE type | Use case |
+|---|---|---|
+| Skyline (generic) | Sciex-style | Import into Skyline for further optimisation |
+| Thermo (Orbitrap/TSQ) | Linear, charge-dependent | TSQ Altis, TSQ Quantiva |
+| SCIEX (QTRAP/TripleTOF) | Empirical | QTRAP 6500+, TripleTOF 6600 |
+| Bruker (timsTOF) | TIMS-adjusted | timsTOF Pro, timsTOF SCP |
+| Agilent (QQQ/QTOF) | Agilent empirical | 6495, 6560 |
+| Waters (Xevo/Synapt) | Waters empirical | Xevo TQ-S, Synapt G2-Si |
+
+## DAR Level Selection
+
+Select one or more DAR levels (DAR0, DAR1, ..., DARn) to include. Each level generates
+separate rows in the transition list with the corresponding precursor m/z.
+
+## Ion Parameters
+
+Fragment ions are b2--b(n-1) and y2--y(n-1), singly charged. Precursor charge states
+2+, 3+, and 4+ are generated. Use **Top N ions per precursor** to limit the list to the
+strongest predicted ions for a given platform.
+
+## Download
+
+For Skyline-based method development:
+
+1. Download **Skyline CSV (Unique Only)**.
+2. In Skyline: **File → Import → Transition List → Column headers match** and select
+   the CSV.
+
+For direct instrument method setup, download the **Instrument CSV** for your platform
+or the **Excel Summary** for a complete multi-sheet workbook.
+
+---
+
+# Workflow Step 5: Heavy Labelling (Tab 5)
+
+Heavy stable isotope labelling (SIL) peptides serve as internal standards (SIL-IS) for
+absolute quantification by LC-MS/MS.
+
+## Typical SILAC-style experiment
+
+1. Select **13C6 15N2 Lys** (+8.014 Da) for tryptic peptides ending in K, and/or
+   **13C6 15N4 Arg** (+10.008 Da) for peptides ending in R.
+2. Select charge states 2+ and 3+.
+3. Download **Heavy Peptides Excel**.
+4. Use the Light/Heavy Pair Summary sheet to verify the expected Delta m/z
+   (e.g.\ 4.007 Th for a doubly charged peptide labelled with 13C6 15N2 Lys).
+
+---
+
+# Workflow Step 6: MS/MS Search Confirmation (Tab 6)
+
+After acquiring LC-MS/MS data on an ADC tryptic digest, use Tab 6 to confirm peptide
+identifications against the theoretical list from Tab 3.
+
+## Recommended workflow
+
+1. Convert raw files to mzML with MSConvert:
+   ```bash
+   msconvert sample.raw --mzML --filter "peakPicking true 1-"
+   ```
+2. Upload the mzML file in Tab 6.
+3. Ensure the correct engine is detected (MS Amanda badge = green).
+4. Click **Run Search**. The app generates `settings.xml` from your Tab 1/2 parameters
+   and launches MS Amanda.
+5. After the search, review the **Detected vs Theoretical** sub-tab and adjust the
+   score threshold slider to balance sensitivity and specificity.
+6. Check the target-decoy FDR estimate. For quantitative bioanalytical methods, aim for
+   FDR $\leq 1\%$.
+7. Download the filtered PSM table and coverage summary.
+
+## Pre-computed results
+
+If you have existing MS Amanda output (`.mzid`) or Tide/Crux output (`.pepxml`),
+upload them directly. The search step is skipped and results are cross-referenced
+immediately.
+
+---
+
+# Workflow Step 7: AI Assistant (Tab 7)
+
+The AI Assistant uses the Anthropic Claude API to provide contextual guidance.
+
+## Example questions
+
+- *"Which of my unique peptides would be the best MRM surrogate for the heavy chain?"*
+- *"Explain why CASIQKFGR is commonly used as an IgG1 reference peptide."*
+- *"What does a coverage gap between residues 220--240 of my heavy chain suggest?"*
+- *"How do I optimise collision energy for a 3+ precursor on a SCIEX QTRAP 6500+?"*
+
+## Setup
+
+Enter your Anthropic API key and click **Save to .Renviron** (one-time). Enable
+**Include digest context** to attach the current ADC name, enzyme, and peptide count
+automatically. The model list is populated from your account's available models.
+
+---
+
+# Interpreting Results: Common Scenarios
+
+## Scenario A: No unique peptides found
+
+Possible causes:
+
+- The ADC is based on a human antibody scaffold and shares most tryptic peptides with
+  the human proteome background.
+- The drug-linker payload modification was not selected, so conjugated peptides are
+  being compared without their payload mass.
+
+Suggested actions:
+
+- Enable the drug-linker payload modification in Tab 2 and re-run the digest. Payload-
+  bearing peptides are typically unique because the modification mass is not present
+  in the background.
+- Reduce the background missed cleavage level (Tab 1 Background section) to allow a
+  more permissive uniqueness call.
+- Try a different enzyme (e.g.\ Lys-C or Asp-N) to generate peptides covering different
+  sequence regions.
+
+## Scenario B: Poor sequence coverage
+
+Possible causes:
+
+- The default missed cleavage level (0) generates short peptides that fall outside the
+  6--30 AA window.
+- The enzyme selected does not have cleavage sites in certain regions.
+
+Suggested actions:
+
+- Increase missed cleavages to 1 or 2 in Tab 1 and re-run.
+- Try a second enzyme (e.g.\ Glu-C) to generate complementary peptides.
+
+## Scenario C: DAR heterogeneity in the transition list
+
+When DAR modelling is enabled, you will see multiple precursor m/z entries for the same
+peptide sequence at different DAR levels. This is expected and correct:
+
+- **DAR0** entries correspond to unconjugated (naked antibody) peptides.
+- **DAR1, DAR2, ...** entries correspond to singly, doubly, ... conjugated species.
+
+For quantification of DAR distribution by LC-MS/MS, monitor at least DAR0 and the
+dominant DAR species (typically DAR2 for cysteine-conjugated ADCs, DAR4 for higher
+loading).
+
+---
+
+# Running Tests
+
+Before deploying or distributing, verify the mass engine is working correctly:
+
+```{r tests}
+source("R/digest.R")
+source("R/modifications.R")
+source("R/transitions.R")
+source("R/isotopes.R")
+source("R/dar.R")
+
+# 79 unit tests
+source("tests/test_masses.R")
+
+# 10 mass accuracy benchmarks (sub-mDa vs IgG1 reference peptides)
+source("tests/benchmark_mass_accuracy.R")
+```
+
+Expected output: `79 / 79 PASSED` and `10 / 10 PASSED`.
+
+---
+
+# Citation
+
+```
+Wase, N. (2026). ADC Peptide Mapper (Version 0.8) [Software].
+https://doi.org/10.5281/zenodo.20681412
+```
+
+See `CITATION.cff` in the project root for the full reference list including all
+scientific citations for the mass accuracy models, FDR method, and linker
+biotransformation references.
+
+---
+
+**Author:** Nishikant Wase, PhD ---
+\href{mailto:nishikant.wase@gmail.com}{nishikant.wase@gmail.com} ---
+\url{https://nishi76.github.io}
+
+*For research use only. All masses are monoisotopic.*
