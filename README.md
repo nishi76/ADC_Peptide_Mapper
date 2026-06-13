@@ -1,6 +1,6 @@
 # ADC Peptide Mapper v0.8
 
-**7-tab R Shiny application** — In-silico proteolytic digest, uniqueness checking, DAR distribution modeling, linker biotransformation variable modifications, instrument-specific transition list export, heavy labelling, MS/MS search confirmation, and an AI assistant for Antibody-Drug Conjugates.
+**R Shiny application** — In-silico proteolytic digest, uniqueness checking, DAR distribution modeling, linker biotransformation variable modifications, instrument-specific transition list export, heavy labelling, MS/MS search confirmation, and an AI assistant for Antibody-Drug Conjugates.
 
 **Live app:** https://nishiw.shinyapps.io/ADC_Peptide_Mapper/
 
@@ -31,17 +31,6 @@
 
 ---
 
-## What's New in v0.7
-
-| Feature | v0.6 | v0.7 |
-|---|---|---|
-| MS/MS Search tab | — | Tab 6: local search + PSM cross-reference |
-| Spectral input | — | mzML, mzXML, MGF |
-| Pre-computed results | — | psm.tsv, pepXML, mzIdentML upload |
-| Sequence coverage map | — | Per-chain coverage visualisation (Tab 3) |
-| Heavy Labelling | — | Tab 5: SIL-IS light/heavy pairs |
-
----
 
 ## Features
 
@@ -58,7 +47,7 @@
 - **Uniqueness check** — vs pre-built Human, Cynomolgus Monkey, and Rat backgrounds (UniProt Swiss-Prot reviewed + TrEMBL)
 - **Cross-species co-uniqueness** — filter peptides unique across all selected species simultaneously
 - **cRAP contaminant integration** — common laboratory contaminants flagged in background
-- **Sequence coverage map (Tab 3)** — greedy-lane visualisation; colour by uniqueness, missed cleavages, or length; PNG download
+- **Sequence coverage map (Tab 3)** — visualisation; colour by uniqueness, missed cleavages, or length; PNG download
 - **Full b/y ion series** — b2..b(n-1) and y2..y(n-1); singly charged products
 - **Averagine isotope envelope** — monoisotopic + isotope distribution per peptide
 - **Instrument-specific export (Tab 4)** — per-platform collision energy formulas and CSV column layouts for 6 instrument families
