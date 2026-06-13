@@ -35,7 +35,7 @@
 ## Features
 
 - **FASTA upload** — multi-chain ADC (HC + LC auto-detected); demo Trastuzumab sequence pre-loaded
-- **9-enzyme digest engine** — Trypsin, Lys-C, Lys-N, Asp-N, Glu-C (E/D), Chymotrypsin, Arg-C, CNBr, Trypsin+Lys-C
+- **11-enzyme digest engine** — Trypsin, Trypsin/P (incl. proline), Lys-C, Lys-C/P (incl. proline), Lys-N, Asp-N, Glu-C (E/D), Arg-C, Chymotrypsin (F/Y/W), Papain (K/R/Q), Elastase (A/V/S/G/T)
 - **Optional second enzyme** — sequential dual-enzyme digestion
 - **Missed cleavages** — 0, 1, or 2 (selectable per run)
 - **Fixed mod** — Carbamidomethylation (CAM, +57.021 Da on C)
@@ -307,7 +307,7 @@ ADC_Peptide_Mapper_v0.8/
 ├── CITATION.cff             ← Citation metadata (CFF v1.2.0)
 ├── README.md                ← This file
 ├── R/
-│   ├── digest.R             ← 9-enzyme digest engine
+│   ├── digest.R             ← 11-enzyme digest engine
 │   ├── modifications.R      ← PTM definitions, ADCDB payloads, linker biotransformations
 │   ├── transitions.R        ← b/y ion series + CE calculation + DAR transitions
 │   ├── isotopes.R           ← Averagine isotope envelope (Senko 1995)
