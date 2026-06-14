@@ -238,7 +238,20 @@ ui <- bs4DashPage(
                 tags$b(" Run Digest"), " to generate peptides and check uniqueness.")),
               column(4, actionButton("btn_run_digest", "Run Digest & Uniqueness Check",
                                      class = "btn-run", icon = icon("play"), width = "100%"))),
-            uiOutput("digest_status_ui")),
+            uiOutput("digest_status_ui"),
+            hr(),
+            div(class = "well", style = "background:#f0f7ff; border:1px solid #b8d4f0; border-radius:6px; padding:10px 14px; margin-top:8px; font-size:12px; color:#2c5f8a;",
+              icon("robot"), tags$b(" AI Assistant (Tab 7)"),
+              tags$p(style = "margin:6px 0 4px 0;",
+                "This app includes an AI assistant for questions about your digest results, DAR modeling, transition selection, and LC-MS/MS method development."),
+              tags$p(style = "margin:0;",
+                "A limited number of free messages are available per session on the hosted app. For unlimited use, supply your own API key in Tab 7 — ",
+                tags$a("Anthropic", href = "https://console.anthropic.com/", target = "_blank"), ", ",
+                tags$a("OpenAI", href = "https://platform.openai.com/api-keys", target = "_blank"), ", or ",
+                tags$a("Google Gemini", href = "https://aistudio.google.com/app/apikey", target = "_blank"),
+                " keys are all accepted.")
+            )
+          ),
 
           bs4Card(title = "Background Proteome & Digest Settings", width = 5,
             status = "primary", collapsible = FALSE,
@@ -733,11 +746,15 @@ ui <- bs4DashPage(
               status = "warning", collapsible = TRUE, collapsed = FALSE,
               solidHeader = FALSE,
               div(id = "apikey_panel",
-                passwordInput("anthropic_api_key",
-                  label = NULL,
-                  value = Sys.getenv("ANTHROPIC_API_KEY"),   # pre-fill from env
-                  placeholder = "sk-ant-api03-...",
-                  width = "100%"),
+                # Provider selector
+                selectInput("ai_provider", "LLM Provider:",
+                  choices = c(
+                    "Anthropic (Claude)"  = "anthropic",
+                    "OpenAI (GPT)"        = "openai",
+                    "Google (Gemini)"     = "gemini"
+                  ),
+                  selected = "anthropic", width = "100%"),
+                uiOutput("ai_provider_key_ui"),
                 fluidRow(
                   column(6,
                     actionButton("btn_save_apikey", "Save to .Renviron",
@@ -752,16 +769,11 @@ ui <- bs4DashPage(
                                  style = "width:100%; margin-top:4px;"))
                 ),
                 uiOutput("apikey_status_ui"),
-                div(class = "apikey-note", style = "margin-top:6px;",
-                  icon("circle-info"),
-                  " Key pre-filled from ", tags$code("ANTHROPIC_API_KEY"),
-                  " env var if set. ",
-                  tags$a("Get a key →", href = "https://console.anthropic.com/",
-                         target = "_blank"))
+                uiOutput("ai_provider_hint_ui")
               ),
               uiOutput("ai_model_ui"),
               tags$small(class = "text-muted",
-                "Models are fetched live from the API when your key is entered.")
+                "For Anthropic, models are fetched live when your key is entered.")
             ),
 
             bs4Card(title = tagList(icon("database"), " Session Context"), width = 12,
@@ -815,11 +827,14 @@ ui <- bs4DashPage(
                   actionButton("btn_chat_send", label = tagList(icon("paper-plane"), " Send"),
                                class = "btn btn-primary")
                 ),
-                div(style = "display:flex; justify-content:space-between; margin-top:6px;",
+                div(style = "display:flex; justify-content:space-between; align-items:center; margin-top:6px;",
                   actionButton("btn_chat_clear", "Clear conversation",
                                class = "btn btn-outline-secondary btn-sm",
                                icon = icon("trash")),
-                  uiOutput("ai_token_info")
+                  div(style = "display:flex; gap:10px; align-items:center;",
+                    uiOutput("ai_usage_badge"),
+                    uiOutput("ai_token_info")
+                  )
                 )
               ),
               # Chat message box — rendered via htmlOutput so we can inject HTML
@@ -861,7 +876,8 @@ server <- function(input, output, session) {
     # ── AI Assistant (Tab 7) ───────────────────────────────────────────────
     chat_history  = list(),  # list of list(role, content) — Anthropic messages format
     ai_thinking   = FALSE,   # TRUE while API call in flight
-    ai_total_tokens = 0L    # cumulative token usage this session
+    ai_total_tokens = 0L,   # cumulative token usage this session
+    ai_msg_count  = 0L      # messages sent this session (rate limit)
   )
 
   # ── FASTA parsing ──────────────────────────────────────────────────────────
@@ -2554,6 +2570,63 @@ for a detailed explanation. If asked for a table, use markdown table format.",
     HTML(paste(unlist(bubbles), collapse = "\n"))
   }
 
+  # ── Provider-specific key input UI ────────────────────────────────────────
+  output$ai_provider_key_ui <- renderUI({
+    provider <- input$ai_provider %||% "anthropic"
+    info <- switch(provider,
+      anthropic = list(id = "anthropic_api_key", ph = "sk-ant-api03-...",
+                       env = "ANTHROPIC_API_KEY",
+                       val = Sys.getenv("ANTHROPIC_API_KEY")),
+      openai    = list(id = "openai_api_key",    ph = "sk-...",
+                       env = "OPENAI_API_KEY",
+                       val = Sys.getenv("OPENAI_API_KEY")),
+      gemini    = list(id = "gemini_api_key",    ph = "AIza...",
+                       env = "GEMINI_API_KEY",
+                       val = Sys.getenv("GEMINI_API_KEY"))
+    )
+    passwordInput(info$id, label = NULL, value = info$val,
+                  placeholder = info$ph, width = "100%")
+  })
+
+  output$ai_provider_hint_ui <- renderUI({
+    provider <- input$ai_provider %||% "anthropic"
+    switch(provider,
+      anthropic = div(class = "apikey-note", style = "margin-top:6px;",
+        icon("circle-info"), " Anthropic key (sk-ant-...). ",
+        tags$a("Get a key →", href = "https://console.anthropic.com/", target = "_blank")),
+      openai    = div(class = "apikey-note", style = "margin-top:6px;",
+        icon("circle-info"), " OpenAI key (sk-...). ",
+        tags$a("Get a key →", href = "https://platform.openai.com/api-keys", target = "_blank")),
+      gemini    = div(class = "apikey-note", style = "margin-top:6px;",
+        icon("circle-info"), " Google AI Studio key (AIza...). ",
+        tags$a("Get a key →", href = "https://aistudio.google.com/app/apikey", target = "_blank"))
+    )
+  })
+
+  # Helper: get active key from whatever provider is selected
+  .active_api_key <- reactive({
+    provider <- input$ai_provider %||% "anthropic"
+    key_id <- switch(provider,
+      anthropic = "anthropic_api_key",
+      openai    = "openai_api_key",
+      gemini    = "gemini_api_key"
+    )
+    trimws(input[[key_id]] %||% "")
+  })
+
+  # ── Usage badge ────────────────────────────────────────────────────────────
+  output$ai_usage_badge <- renderUI({
+    AI_MSG_LIMIT <- 10L
+    used <- rv$ai_msg_count
+    env_key <- Sys.getenv("ANTHROPIC_API_KEY")
+    # Only show the badge when no env key is set (i.e. on the hosted app)
+    if (nzchar(env_key)) return(NULL)
+    remaining <- max(0L, AI_MSG_LIMIT - used)
+    col <- if (remaining == 0L) "#e74c3c" else if (remaining <= 3L) "#e67e22" else "#27ae60"
+    tags$span(style = sprintf("font-size:11px; color:%s;", col),
+      icon("comment-dots"), sprintf(" %d / %d messages used", used, AI_MSG_LIMIT))
+  })
+
   # ── Dynamic model list: fetch from /v1/models when key changes ───────────
 
   # Fallback choices used before/if the API call fails
@@ -2590,21 +2663,35 @@ for a detailed explanation. If asked for a table, use markdown table format.",
   })
 
   output$ai_model_ui <- renderUI({
-    models <- available_models()
-    # Prefer a haiku/fast model as default; fall back to first available
-    default <- models[grepl("haiku", models, ignore.case = TRUE)][1]
-    if (is.na(default)) default <- models[1]
-    selectInput("ai_model", "Claude model:",
-                choices  = setNames(models, models),
-                selected = default)
+    provider <- input$ai_provider %||% "anthropic"
+    if (provider == "anthropic") {
+      models  <- available_models()
+      default <- models[grepl("haiku", models, ignore.case = TRUE)][1]
+      if (is.na(default)) default <- models[1]
+      selectInput("ai_model", "Model:",
+                  choices = setNames(models, models), selected = default)
+    } else if (provider == "openai") {
+      selectInput("ai_model", "Model:",
+        choices = c("gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"),
+        selected = "gpt-4o-mini")
+    } else {
+      selectInput("ai_model", "Model:",
+        choices = c("gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"),
+        selected = "gemini-1.5-flash")
+    }
   })
 
   # ── API key persistence helpers ───────────────────────────────────────────
 
   # Status badge: shows whether env var is set and if field matches
   output$apikey_status_ui <- renderUI({
-    env_key   <- Sys.getenv("ANTHROPIC_API_KEY")
-    input_key <- trimws(input$anthropic_api_key %||% "")
+    provider  <- input$ai_provider %||% "anthropic"
+    env_var   <- switch(provider, anthropic="ANTHROPIC_API_KEY",
+                                  openai="OPENAI_API_KEY", gemini="GEMINI_API_KEY")
+    key_id    <- switch(provider, anthropic="anthropic_api_key",
+                                  openai="openai_api_key", gemini="gemini_api_key")
+    env_key   <- Sys.getenv(env_var)
+    input_key <- trimws(input[[key_id]] %||% "")
     if (nzchar(env_key) && input_key == env_key) {
       tags$div(style = "margin-top:5px; font-size:11px; color:#27ae60;",
         icon("circle-check"), " Key loaded from environment — auto-fills each session.")
@@ -2624,43 +2711,45 @@ for a detailed explanation. If asked for a table, use markdown table format.",
 
   # Save key to ~/.Renviron (or project .Renviron) so it persists across sessions
   observeEvent(input$btn_save_apikey, {
-    key <- trimws(input$anthropic_api_key %||% "")
+    provider <- input$ai_provider %||% "anthropic"
+    env_var  <- switch(provider, anthropic="ANTHROPIC_API_KEY",
+                                 openai="OPENAI_API_KEY", gemini="GEMINI_API_KEY")
+    key_id   <- switch(provider, anthropic="anthropic_api_key",
+                                 openai="openai_api_key", gemini="gemini_api_key")
+    key <- trimws(input[[key_id]] %||% "")
     if (!nzchar(key)) {
       showNotification("Enter an API key first.", type = "warning"); return()
     }
-    if (!startsWith(key, "sk-ant-")) {
-      showNotification("Key doesn't look like an Anthropic key (expected sk-ant-...).",
-                       type = "warning", duration = 6); return()
-    }
 
-    # Write to project .Renviron first, fall back to ~/.Renviron
     renviron_path <- if (file.exists(".Renviron")) ".Renviron" else
                      file.path(Sys.getenv("HOME"), ".Renviron")
 
-    # Read existing lines, remove any existing ANTHROPIC_API_KEY entry, append new one
     existing <- if (file.exists(renviron_path))
                   readLines(renviron_path, warn = FALSE) else character(0)
-    existing <- existing[!grepl("^ANTHROPIC_API_KEY\\s*=", existing)]
-    new_line <- sprintf('ANTHROPIC_API_KEY="%s"', key)
+    pat      <- sprintf("^%s\\s*=", env_var)
+    existing <- existing[!grepl(pat, existing)]
+    new_line <- sprintf('%s="%s"', env_var, key)
     writeLines(c(existing, new_line), renviron_path)
 
-    # Also set in current session so it takes effect immediately
-    Sys.setenv(ANTHROPIC_API_KEY = key)
+    do.call(Sys.setenv, setNames(list(key), env_var))
 
     showNotification(
-      paste0("Key saved to ", renviron_path,
-             ". It will auto-fill on next app start."),
+      paste0(env_var, " saved to ", renviron_path, ". It will auto-fill on next app start."),
       type = "message", duration = 8
     )
   })
 
-  # Clear key from field and optionally from .Renviron
+  # Clear key from field and env
   observeEvent(input$btn_clear_apikey, {
-    updateTextInput(session, "anthropic_api_key", value = "")
-    # Remove from current process env
-    Sys.setenv(ANTHROPIC_API_KEY = "")
+    provider <- input$ai_provider %||% "anthropic"
+    env_var  <- switch(provider, anthropic="ANTHROPIC_API_KEY",
+                                 openai="OPENAI_API_KEY", gemini="GEMINI_API_KEY")
+    key_id   <- switch(provider, anthropic="anthropic_api_key",
+                                 openai="openai_api_key", gemini="gemini_api_key")
+    updateTextInput(session, key_id, value = "")
+    do.call(Sys.setenv, setNames(list(""), env_var))
     showNotification(
-      "API key cleared from this session. To permanently remove it, delete the ANTHROPIC_API_KEY line from your .Renviron file.",
+      paste0(env_var, " cleared from this session. Remove the line from .Renviron to make it permanent."),
       type = "message", duration = 8
     )
   })
@@ -2719,87 +2808,130 @@ for a detailed explanation. If asked for a table, use markdown table format.",
     user_text <- trimws(input$chat_input)
     if (!nzchar(user_text)) return()
 
-    # Validate API key
-    api_key <- trimws(input$anthropic_api_key %||% "")
+    provider <- input$ai_provider %||% "anthropic"
+
+    # Rate limit — 10 messages per session when no server-side key is set
+    AI_MSG_LIMIT <- 10L
+    no_server_key <- nchar(Sys.getenv("ANTHROPIC_API_KEY")) == 0L &&
+                     nchar(Sys.getenv("OPENAI_API_KEY"))    == 0L &&
+                     nchar(Sys.getenv("GEMINI_API_KEY"))    == 0L
+    if (no_server_key && rv$ai_msg_count >= AI_MSG_LIMIT) {
+      showNotification(
+        paste0("Session limit of ", AI_MSG_LIMIT, " messages reached. ",
+               "Enter your own API key in Tab 7 to continue without limits."),
+        type = "warning", duration = 8)
+      return()
+    }
+
+    # Validate API key for selected provider
+    api_key <- .active_api_key()
     if (!nzchar(api_key)) {
-      showNotification("Please enter your Anthropic API key in the AI Assistant panel.",
+      showNotification("Enter an API key in the AI Assistant panel first.",
                        type = "warning", duration = 5)
       return()
     }
 
-    # Clear input, append user message, show typing
+    # Clear input, append user message, show typing indicator
     updateTextAreaInput(session, "chat_input", value = "")
     rv$chat_history <- c(rv$chat_history,
                          list(list(role = "user", content = user_text)))
     rv$ai_thinking  <- TRUE
 
-    # Scroll chat to bottom
     shinyjs::runjs("setTimeout(function(){
       var b=document.getElementById('chat_box'); if(b) b.scrollTop=b.scrollHeight;
     }, 50);")
 
-    # Snapshot values for async call
-    messages_snap  <- rv$chat_history
-    system_snap    <- isolate(.ai_system_prompt())
-    model_snap     <- input$ai_model %||% "claude-3-5-haiku-20241022"
+    messages_snap <- rv$chat_history
+    system_snap   <- isolate(.ai_system_prompt())
+    model_snap    <- input$ai_model %||% "claude-3-5-haiku-20241022"
 
-    # ── Anthropic Messages API call (via httr2) ────────────────────────────
-    resp <- tryCatch({
-      # NOTE: do NOT set content-type manually — req_body_json() sets it
-      # automatically to application/json. Setting it twice causes Anthropic
-      # to receive duplicate headers and reject the request body.
-      req <- httr2::request("https://api.anthropic.com/v1/messages") |>
-        httr2::req_headers(
-          "x-api-key"         = api_key,
-          "anthropic-version" = "2023-06-01"
-        ) |>
-        httr2::req_body_json(list(
-          model      = model_snap,
-          max_tokens = 1024L,
-          system     = system_snap,
-          messages   = messages_snap
-        )) |>
-        httr2::req_timeout(60) |>
-        httr2::req_error(is_error = function(resp) FALSE)
+    # ── Route to selected provider ──────────────────────────────────────────
+    resp_text <- tryCatch({
 
-      httr2::req_perform(req)
-    }, error = function(e) {
-      list(error = conditionMessage(e))
-    })
-
-    rv$ai_thinking <- FALSE
-
-    # ── Handle response ───────────────────────────────────────────────────
-    if (is.list(resp) && !is.null(resp$error)) {
-      assistant_text <- paste0("[Connection error: ", resp$error, "]")
-    } else {
-      status_code <- httr2::resp_status(resp)
-      body        <- tryCatch(httr2::resp_body_json(resp), error = function(e) NULL)
-
-      if (status_code != 200L) {
-        err_type <- body$error$type    %||% ""
-        err_msg  <- body$error$message %||% paste("HTTP", status_code)
-        assistant_text <- paste0(
-          "[API error (HTTP ", status_code,
-          if (nzchar(err_type)) paste0(" / ", err_type) else "",
-          "): ", err_msg, "]"
-        )
-      } else {
-        assistant_text <- body$content[[1L]]$text %||%
-                          "[No response text returned]"
-        # Track token usage
+      if (provider == "anthropic") {
+        req <- httr2::request("https://api.anthropic.com/v1/messages") |>
+          httr2::req_headers("x-api-key" = api_key,
+                             "anthropic-version" = "2023-06-01") |>
+          httr2::req_body_json(list(model      = model_snap,
+                                    max_tokens = 1024L,
+                                    system     = system_snap,
+                                    messages   = messages_snap)) |>
+          httr2::req_timeout(60) |>
+          httr2::req_error(is_error = function(r) FALSE)
+        r    <- httr2::req_perform(req)
+        body <- httr2::resp_body_json(r)
+        if (httr2::resp_status(r) != 200L) {
+          stop(body$error$message %||% paste("HTTP", httr2::resp_status(r)))
+        }
+        # track tokens
         usage <- body$usage
-        if (!is.null(usage)) {
+        if (!is.null(usage))
           rv$ai_total_tokens <- rv$ai_total_tokens +
             (usage$input_tokens %||% 0L) + (usage$output_tokens %||% 0L)
+        body$content[[1L]]$text %||% "[No response text]"
+
+      } else if (provider == "openai") {
+        # Build OpenAI messages: system + history
+        oai_msgs <- c(
+          list(list(role = "system", content = system_snap)),
+          messages_snap
+        )
+        req <- httr2::request("https://api.openai.com/v1/chat/completions") |>
+          httr2::req_headers("Authorization" = paste("Bearer", api_key)) |>
+          httr2::req_body_json(list(model       = model_snap,
+                                    max_tokens  = 1024L,
+                                    messages    = oai_msgs)) |>
+          httr2::req_timeout(60) |>
+          httr2::req_error(is_error = function(r) FALSE)
+        r    <- httr2::req_perform(req)
+        body <- httr2::resp_body_json(r)
+        if (httr2::resp_status(r) != 200L) {
+          stop(body$error$message %||% paste("HTTP", httr2::resp_status(r)))
         }
+        usage <- body$usage
+        if (!is.null(usage))
+          rv$ai_total_tokens <- rv$ai_total_tokens +
+            (usage$prompt_tokens %||% 0L) + (usage$completion_tokens %||% 0L)
+        body$choices[[1L]]$message$content %||% "[No response text]"
+
+      } else {
+        # Google Gemini (generateContent endpoint)
+        # Convert history to Gemini "contents" format
+        gem_contents <- lapply(messages_snap, function(m) {
+          role <- if (m$role == "assistant") "model" else "user"
+          list(role = role, parts = list(list(text = m$content)))
+        })
+        # Prepend system instruction as first user turn if not already there
+        gem_body <- list(
+          system_instruction = list(parts = list(list(text = system_snap))),
+          contents           = gem_contents,
+          generationConfig   = list(maxOutputTokens = 1024L)
+        )
+        url <- sprintf(
+          "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
+          model_snap, api_key)
+        req <- httr2::request(url) |>
+          httr2::req_body_json(gem_body) |>
+          httr2::req_timeout(60) |>
+          httr2::req_error(is_error = function(r) FALSE)
+        r    <- httr2::req_perform(req)
+        body <- httr2::resp_body_json(r)
+        if (httr2::resp_status(r) != 200L) {
+          stop(body$error$message %||% paste("HTTP", httr2::resp_status(r)))
+        }
+        body$candidates[[1L]]$content$parts[[1L]]$text %||% "[No response text]"
       }
-    }
+
+    }, error = function(e) {
+      paste0("[Error: ", conditionMessage(e), "]")
+    })
+
+    rv$ai_thinking  <- FALSE
+    rv$ai_msg_count <- rv$ai_msg_count + 1L
 
     rv$chat_history <- c(rv$chat_history,
-                         list(list(role = "assistant", content = assistant_text)))
+                         list(list(role = "assistant", content = resp_text)))
 
-    # Scroll to bottom after response
     shinyjs::runjs("setTimeout(function(){
       var b=document.getElementById('chat_box'); if(b) b.scrollTop=b.scrollHeight;
     }, 100);")
@@ -2809,6 +2941,7 @@ for a detailed explanation. If asked for a table, use markdown table format.",
   observeEvent(input$btn_chat_clear, {
     rv$chat_history     <- list()
     rv$ai_total_tokens  <- 0L
+    rv$ai_msg_count     <- 0L
     rv$ai_thinking      <- FALSE
   })
 
