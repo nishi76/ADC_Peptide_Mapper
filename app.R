@@ -1734,9 +1734,9 @@ server <- function(input, output, session) {
         plot(NA, xlim = c(1, len), ylim = c(0, 1),
              xlab = "Residue position", ylab = "",
              main = ch, yaxt = "n", cex.main = 0.9)
-        rect(1, 0.3, len, 0.7, col = "#ecf0f1", border = NA)
+        rect(1, 0.3, len, 0.7, col = "#e8ecf0", border = NA)
         for (j in seq_len(nrow(sub))) {
-          col <- if (sub$UniqueToADC[j]) "#1a2744" else "#95a5a6"
+          col <- if (sub$UniqueToADC[j]) "#1d6fa4" else "#e8735a"
           rect(sub$Start[j], 0.25, sub$End[j], 0.75, col = col, border = NA)
         }
         covered <- unique(unlist(lapply(seq_len(nrow(sub)),
@@ -1813,10 +1813,9 @@ server <- function(input, output, session) {
       plot_dt$FillVar <- ifelse(plot_dt$UniqueToADC, "Unique to ADC", "Non-unique")
       fill_scale <- scale_fill_manual(
         name   = "Uniqueness",
-        values = c("Unique to ADC" = "#1a2744", "Non-unique" = "#95a5a6"))
+        values = c("Unique to ADC" = "#1d6fa4", "Non-unique" = "#e8735a"))
     } else if (color_by == "mc") {
-      mc_col <- c("0" = "#1a2744", "1" = "#5b7fa6", "2" = "#aec6df")
-      # Infer MC from MissedCleavages column if present, else default 0
+      mc_col <- c("0" = "#1d6fa4", "1" = "#f0a500", "2" = "#d94f70")
       if ("MissedCleavages" %in% names(plot_dt)) {
         plot_dt$FillVar <- as.character(pmin(plot_dt$MissedCleavages, 2L))
       } else {
@@ -1830,31 +1829,45 @@ server <- function(input, output, session) {
       plot_dt$FillVar <- plot_dt$Length
       fill_scale <- scale_fill_viridis_c(
         name   = "Peptide length",
-        option = "D", direction = -1)
+        option = "C", direction = -1)
     }
 
-    # Max lanes per chain for height calculation
     max_lane <- max(plot_dt$Lane, na.rm = TRUE)
 
     p <- ggplot(as.data.frame(plot_dt)) +
-      geom_rect(aes(xmin = Start - 0.5, xmax = End + 0.5,
-                    ymin = Lane - 0.4,  ymax = Lane + 0.4,
+      # Light grey backbone bar representing the full chain
+      geom_rect(data = data.frame(
+                  ChainLabel = chains,
+                  xmin = 1,
+                  xmax = sapply(chains, function(ch) max(pep_dt[Chain == ch]$End)),
+                  ymin = 0.5, ymax = max_lane + 0.5),
+                aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+                fill = "#e8ecf0", colour = NA, inherit.aes = FALSE) +
+      geom_rect(aes(xmin = Start - 0.3, xmax = End + 0.3,
+                    ymin = Lane - 0.42, ymax = Lane + 0.42,
                     fill = FillVar),
-                colour = "white", linewidth = 0.15) +
+                colour = "#ffffff", linewidth = 0.25) +
       fill_scale +
       geom_text(data = cov_df,
                 aes(x = x, y = y, label = label),
-                size = 3, colour = "#333333", fontface = "italic") +
+                size = 3.5, colour = "#1a1a1a", fontface = "italic") +
       facet_wrap(~ ChainLabel, ncol = 1, scales = "free") +
       scale_x_continuous(name = "Residue position", expand = expansion(mult = 0.01)) +
-      scale_y_continuous(name = NULL, breaks = NULL) +
-      theme_minimal(base_size = 11) +
+      scale_y_continuous(name = NULL, breaks = NULL, expand = expansion(add = 1)) +
+      theme_minimal(base_size = 13) +
       theme(
-        strip.text       = element_text(face = "bold", colour = "#1a2940", size = 11),
+        strip.background = element_rect(fill = "#ddeaf5", colour = NA),
+        strip.text       = element_text(face = "bold", colour = "#1a3a5c", size = 12),
         legend.position  = "bottom",
+        legend.title     = element_text(size = 11, face = "bold"),
+        legend.text      = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
-        axis.text.y      = element_blank()
+        axis.text.x      = element_text(size = 10),
+        axis.title.x     = element_text(size = 11),
+        axis.text.y      = element_blank(),
+        plot.background  = element_rect(fill = "white", colour = NA),
+        panel.background = element_rect(fill = "white", colour = NA)
       )
 
     # Optional peptide labels
@@ -1864,7 +1877,7 @@ server <- function(input, output, session) {
         p <- p + geom_text(
           data = label_dt,
           aes(x = (Start + End) / 2, y = Lane, label = Sequence),
-          size = 2, colour = "white", fontface = "bold",
+          size = 2.2, colour = "white", fontface = "bold",
           hjust = 0.5, vjust = 0.5, na.rm = TRUE)
       }
     }
@@ -1872,18 +1885,29 @@ server <- function(input, output, session) {
     print(p)
   }, height = function() {
     dt <- rv$peptides_dt
-    if (is.null(dt) || nrow(dt) == 0L) return(300L)
+    if (is.null(dt) || nrow(dt) == 0L) return(400L)
     chain_f <- input$cov_chain_filter %||% "all"
     chains  <- if (chain_f == "all") unique(dt$Chain) else chain_f
     chains  <- intersect(chains, unique(dt$Chain))
     n_ch    <- length(chains)
-    # Estimate max lanes
+    assign_lanes_quick <- function(sub_dt) {
+      sub_dt <- sub_dt[order(sub_dt$Start), ]
+      lane_ends <- integer(0)
+      lanes     <- integer(nrow(sub_dt))
+      for (i in seq_len(nrow(sub_dt))) {
+        s <- sub_dt$Start[i]; e <- sub_dt$End[i]
+        ok <- FALSE
+        for (l in seq_along(lane_ends)) {
+          if (lane_ends[l] < s) { lanes[i] <- l; lane_ends[l] <- e; ok <- TRUE; break }
+        }
+        if (!ok) { lane_ends <- c(lane_ends, e); lanes[i] <- length(lane_ends) }
+      }
+      max(lanes, 1L)
+    }
     max_lanes <- max(sapply(chains, function(ch) {
-      sub <- dt[Chain == ch]
-      # rough estimate: sqrt of peptide count
-      ceiling(sqrt(nrow(sub)))
+      assign_lanes_quick(dt[Chain == ch])
     }), na.rm = TRUE)
-    max(250L, as.integer(n_ch * (max_lanes * 20L + 80L)))
+    max(400L, as.integer(n_ch * (max_lanes * 32L + 120L)))
   })
 
   # Coverage map download handler
@@ -1898,8 +1922,9 @@ server <- function(input, output, session) {
         showNotification("ggplot2 required for PNG download.", type = "warning")
         return()
       }
-      # Re-render at high resolution
-      png(file, width = 12, height = 8, units = "in", res = 300)
+      # Re-render at high resolution — height scales with number of chains
+      n_ch_dl <- length(unique(rv$peptides_dt$Chain))
+      png(file, width = 14, height = max(8, n_ch_dl * 6), units = "in", res = 300)
       # Trigger the same plot logic via isolate
       isolate({
         pep_dt   <- rv$peptides_dt
@@ -1925,29 +1950,56 @@ server <- function(input, output, session) {
           sub$ChainLabel <- ch; sub
         })
         plot_dt <- rbindlist(plot_list)
+        assign_lanes_dl <- function(sub_dt) {
+          sub_dt <- sub_dt[order(sub_dt$Start), ]
+          lanes <- integer(nrow(sub_dt)); lane_ends <- integer(0)
+          for (i in seq_len(nrow(sub_dt))) {
+            s <- sub_dt$Start[i]; e <- sub_dt$End[i]; ok <- FALSE
+            for (l in seq_along(lane_ends)) {
+              if (lane_ends[l] < s) { lanes[i] <- l; lane_ends[l] <- e; ok <- TRUE; break }
+            }
+            if (!ok) { lane_ends <- c(lane_ends, e); lanes[i] <- length(lane_ends) }
+          }
+          sub_dt$Lane <- lanes; sub_dt
+        }
+        max_lane_dl <- max(rbindlist(lapply(chains, function(ch) {
+          sub <- pep_dt[Chain == ch]; assign_lanes_dl(sub)
+        }))$Lane, na.rm = TRUE)
         if (color_by == "unique") {
           plot_dt$FillVar <- ifelse(plot_dt$UniqueToADC, "Unique to ADC", "Non-unique")
           fill_scale <- scale_fill_manual(name="Uniqueness",
-            values=c("Unique to ADC"="#1a2744","Non-unique"="#95a5a6"))
+            values=c("Unique to ADC"="#1d6fa4","Non-unique"="#e8735a"))
         } else if (color_by == "mc") {
           plot_dt$FillVar <- if ("MissedCleavages" %in% names(plot_dt))
             as.character(pmin(plot_dt$MissedCleavages, 2L)) else "0"
           fill_scale <- scale_fill_manual(name="Missed cleavages",
-            values=c("0"="#1a2744","1"="#5b7fa6","2"="#aec6df"))
+            values=c("0"="#1d6fa4","1"="#f0a500","2"="#d94f70"))
         } else {
           plot_dt$FillVar <- plot_dt$Length
-          fill_scale <- scale_fill_viridis_c(name="Peptide length", option="D", direction=-1)
+          fill_scale <- scale_fill_viridis_c(name="Peptide length", option="C", direction=-1)
         }
         p <- ggplot(as.data.frame(plot_dt)) +
-          geom_rect(aes(xmin=Start-0.5, xmax=End+0.5, ymin=Lane-0.4, ymax=Lane+0.4, fill=FillVar),
-                    colour="white", linewidth=0.15) +
+          geom_rect(data=data.frame(
+                      ChainLabel=chains,
+                      xmin=1,
+                      xmax=sapply(chains, function(ch) max(pep_dt[Chain==ch]$End)),
+                      ymin=0.5, ymax=max_lane_dl+0.5),
+                    aes(xmin=xmin,xmax=xmax,ymin=ymin,ymax=ymax),
+                    fill="#e8ecf0",colour=NA,inherit.aes=FALSE) +
+          geom_rect(aes(xmin=Start-0.3, xmax=End+0.3, ymin=Lane-0.42, ymax=Lane+0.42, fill=FillVar),
+                    colour="white", linewidth=0.25) +
           fill_scale +
           facet_wrap(~ChainLabel, ncol=1, scales="free") +
           scale_x_continuous(name="Residue position", expand=expansion(mult=0.01)) +
-          scale_y_continuous(name=NULL, breaks=NULL) +
-          theme_minimal(base_size=12) +
-          theme(strip.text=element_text(face="bold",colour="#1a2940",size=12),
-                legend.position="bottom", panel.grid=element_blank())
+          scale_y_continuous(name=NULL, breaks=NULL, expand=expansion(add=1)) +
+          theme_minimal(base_size=14) +
+          theme(strip.background=element_rect(fill="#ddeaf5",colour=NA),
+                strip.text=element_text(face="bold",colour="#1a3a5c",size=13),
+                legend.position="bottom",
+                legend.title=element_text(size=12,face="bold"),
+                legend.text=element_text(size=12),
+                panel.grid=element_blank(),
+                plot.background=element_rect(fill="white",colour=NA))
         print(p)
       })
       dev.off()
@@ -2249,11 +2301,11 @@ server <- function(input, output, session) {
       plot(NA, xlim = c(1, len), ylim = c(0, 1),
            xlab = "Residue position", ylab = "",
            main = ch, yaxt = "n",
-           cex.main = 0.95, cex.axis = 0.8,
-           col.main = "#1a2940")
+           cex.main = 1.05, cex.axis = 0.9,
+           col.main = "#1a3a5c")
 
       # Background bar (full chain)
-      rect(1, 0.3, len, 0.7, col = "#ecf0f1", border = NA)
+      rect(1, 0.3, len, 0.7, col = "#e8ecf0", border = NA)
 
       # Detected peptide segments
       for (j in seq_len(nrow(sub))) {
@@ -2261,7 +2313,7 @@ server <- function(input, output, session) {
         detected <- pep_seq %in% det_seqs
         if (!detected) next
         is_unique <- sub$UniqueToADC[j]
-        fill_col  <- if (is_unique) "#1a2940" else "#95a5a6"
+        fill_col  <- if (is_unique) "#1d6fa4" else "#e8735a"
         rect(sub$Start[j], 0.25, sub$End[j], 0.75,
              col = fill_col, border = NA)
       }
@@ -2281,8 +2333,8 @@ server <- function(input, output, session) {
     par(mfrow = c(1, 1), mar = c(0, 0, 0, 0), new = TRUE)
     legend("bottomright",
            legend = c("Detected (unique to ADC)", "Detected (non-unique)", "Not detected"),
-           fill   = c("#1a2940", "#95a5a6", "#ecf0f1"),
-           border = NA, bty = "n", cex = 0.8, inset = 0.01)
+           fill   = c("#1d6fa4", "#e8735a", "#e8ecf0"),
+           border = NA, bty = "n", cex = 0.85, inset = 0.01)
   })
 
   # ── Detected vs Theoretical table ─────────────────────────────────────────
