@@ -1736,7 +1736,7 @@ server <- function(input, output, session) {
              main = ch, yaxt = "n", cex.main = 0.9)
         rect(1, 0.3, len, 0.7, col = "#e8ecf0", border = NA)
         for (j in seq_len(nrow(sub))) {
-          col <- if (sub$UniqueToADC[j]) "#1d6fa4" else "#e8735a"
+          col <- if (sub$UniqueToADC[j]) "#440154" else "#35b779"
           rect(sub$Start[j], 0.25, sub$End[j], 0.75, col = col, border = NA)
         }
         covered <- unique(unlist(lapply(seq_len(nrow(sub)),
@@ -1808,28 +1808,33 @@ server <- function(input, output, session) {
       stringsAsFactors = FALSE
     )
 
-    # Colour mapping
+    # Colour mapping — all modes use the viridis palette family
     if (color_by == "unique") {
-      plot_dt$FillVar <- ifelse(plot_dt$UniqueToADC, "Unique to ADC", "Non-unique")
+      plot_dt$FillVar <- factor(
+        ifelse(plot_dt$UniqueToADC, "Unique to ADC", "Non-unique"),
+        levels = c("Unique to ADC", "Non-unique"))
+      # viridis D endpoints: dark purple for unique, yellow-green for non-unique
       fill_scale <- scale_fill_manual(
         name   = "Uniqueness",
-        values = c("Unique to ADC" = "#1d6fa4", "Non-unique" = "#e8735a"))
+        values = c("Unique to ADC" = "#440154", "Non-unique" = "#35b779"))
     } else if (color_by == "mc") {
-      mc_col <- c("0" = "#1d6fa4", "1" = "#f0a500", "2" = "#d94f70")
       if ("MissedCleavages" %in% names(plot_dt)) {
-        plot_dt$FillVar <- as.character(pmin(plot_dt$MissedCleavages, 2L))
+        plot_dt$FillVar <- factor(as.character(pmin(plot_dt$MissedCleavages, 2L)),
+                                  levels = c("0", "1", "2"))
       } else {
-        plot_dt$FillVar <- "0"
+        plot_dt$FillVar <- factor("0", levels = c("0", "1", "2"))
       }
+      # viridis D: purple → teal → yellow
       fill_scale <- scale_fill_manual(
         name   = "Missed cleavages",
-        values = mc_col)
+        values = c("0" = "#440154", "1" = "#21908c", "2" = "#fde725"))
     } else {
-      # length
+      # length — continuous viridis
       plot_dt$FillVar <- plot_dt$Length
       fill_scale <- scale_fill_viridis_c(
-        name   = "Peptide length",
-        option = "C", direction = -1)
+        name   = "Peptide length (AA)",
+        option = "D", direction = 1,
+        limits = c(6, 30), oob = scales::squish)
     }
 
     max_lane <- max(plot_dt$Lane, na.rm = TRUE)
@@ -1966,17 +1971,23 @@ server <- function(input, output, session) {
           sub <- pep_dt[Chain == ch]; assign_lanes_dl(sub)
         }))$Lane, na.rm = TRUE)
         if (color_by == "unique") {
-          plot_dt$FillVar <- ifelse(plot_dt$UniqueToADC, "Unique to ADC", "Non-unique")
+          plot_dt$FillVar <- factor(
+            ifelse(plot_dt$UniqueToADC, "Unique to ADC", "Non-unique"),
+            levels = c("Unique to ADC", "Non-unique"))
           fill_scale <- scale_fill_manual(name="Uniqueness",
-            values=c("Unique to ADC"="#1d6fa4","Non-unique"="#e8735a"))
+            values=c("Unique to ADC"="#440154","Non-unique"="#35b779"))
         } else if (color_by == "mc") {
-          plot_dt$FillVar <- if ("MissedCleavages" %in% names(plot_dt))
-            as.character(pmin(plot_dt$MissedCleavages, 2L)) else "0"
+          plot_dt$FillVar <- factor(
+            if ("MissedCleavages" %in% names(plot_dt))
+              as.character(pmin(plot_dt$MissedCleavages, 2L)) else "0",
+            levels=c("0","1","2"))
           fill_scale <- scale_fill_manual(name="Missed cleavages",
-            values=c("0"="#1d6fa4","1"="#f0a500","2"="#d94f70"))
+            values=c("0"="#440154","1"="#21908c","2"="#fde725"))
         } else {
           plot_dt$FillVar <- plot_dt$Length
-          fill_scale <- scale_fill_viridis_c(name="Peptide length", option="C", direction=-1)
+          fill_scale <- scale_fill_viridis_c(name="Peptide length (AA)",
+            option="D", direction=1, limits=c(6,30),
+            oob=scales::squish)
         }
         p <- ggplot(as.data.frame(plot_dt)) +
           geom_rect(data=data.frame(
@@ -2313,7 +2324,7 @@ server <- function(input, output, session) {
         detected <- pep_seq %in% det_seqs
         if (!detected) next
         is_unique <- sub$UniqueToADC[j]
-        fill_col  <- if (is_unique) "#1d6fa4" else "#e8735a"
+        fill_col  <- if (is_unique) "#440154" else "#35b779"
         rect(sub$Start[j], 0.25, sub$End[j], 0.75,
              col = fill_col, border = NA)
       }
@@ -2333,7 +2344,7 @@ server <- function(input, output, session) {
     par(mfrow = c(1, 1), mar = c(0, 0, 0, 0), new = TRUE)
     legend("bottomright",
            legend = c("Detected (unique to ADC)", "Detected (non-unique)", "Not detected"),
-           fill   = c("#1d6fa4", "#e8735a", "#e8ecf0"),
+           fill   = c("#440154", "#35b779", "#e8ecf0"),
            border = NA, bty = "n", cex = 0.85, inset = 0.01)
   })
 
