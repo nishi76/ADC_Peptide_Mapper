@@ -150,9 +150,11 @@ ui <- bs4DashPage(
       style = "font-size:11px; color:#7f8c8d;",
       tags$b("ADC Peptide Mapper v0.8"),
       " — In-silico ADC digest & transition list generator. ",
-      tags$a("Cite via Zenodo", href = "https://doi.org/10.5281/zenodo.XXXXXXX",
+      tags$a("Cite via Zenodo", href = "https://doi.org/10.5281/zenodo.20681412",
              target = "_blank", style = "color:#3498db;"),
-      " | Wase N. (2026)"
+      " | Wase N. (2026) | ",
+      tags$span(style = "color:#9b59b6;",
+        icon("robot"), " Developed with AI assistance (Claude, Anthropic)")
     ),
     right = tags$span(
       id = "footer_session_info",
@@ -309,13 +311,28 @@ ui <- bs4DashPage(
                   "In-silico digest and LC-MS/MS transition list generator for ",
                   "Antibody-Drug Conjugate peptide mapping studies."),
                 tags$p(style = "font-size:12px; color:#555;",
-                  tags$b("Author: "), "Nishikant Wase", tags$br(),
+                  tags$b("Author: "), "Nishikant Wase, PhD", tags$br(),
                   tags$b("License: "), "MIT", tags$br(),
                   tags$b("Citation: "),
-                  tags$a("Zenodo DOI (replace placeholder after upload)",
-                         href = "https://doi.org/10.5281/zenodo.XXXXXXX",
+                  tags$a("10.5281/zenodo.20681412",
+                         href = "https://doi.org/10.5281/zenodo.20681412",
                          target = "_blank")),
                 tags$hr(style = "margin:8px 0;"),
+                # AI disclosure
+                div(style = "background:#f5f0fa; border-left:3px solid #9b59b6;
+                             border-radius:4px; padding:8px 12px; margin-bottom:8px;",
+                  tags$p(style = "font-size:11px; color:#555; margin:0;",
+                    icon("robot", style = "color:#9b59b6;"),
+                    tags$b(" AI Development Disclosure"), tags$br(),
+                    "Portions of this application were developed with the assistance of ",
+                    tags$a("Claude (Anthropic)", href = "https://www.anthropic.com",
+                           target = "_blank", style = "color:#9b59b6;"),
+                    ", an AI assistant. All scientific logic, mass accuracy validation, ",
+                    "and domain-specific decisions were authored and verified by Nishikant Wase. ",
+                    "The AI assisted with code structure, UI layout, and documentation. ",
+                    "For research use only — users should independently validate all outputs."
+                  )
+                ),
                 tags$p(style = "font-size:11px; color:#777;",
                   tags$b("Key references:"), tags$br(),
                   "• Averagine isotopes: Senko et al. JASMS 1995", tags$br(),

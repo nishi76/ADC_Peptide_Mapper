@@ -399,6 +399,16 @@ MIT License — see `LICENSE` for details.
 
 ---
 
+## AI Development Disclosure
+
+Portions of this application were developed with the assistance of [Claude](https://www.anthropic.com) (Anthropic), an AI assistant. Specifically, AI assistance was used for code structure, UI layout, documentation, and iterative debugging during development of version 0.8.
+
+All scientific logic — including mass accuracy models, enzymatic digestion rules, DAR distribution modeling, linker biotransformation definitions, uniqueness filtering against reference proteomes, and instrument-specific collision energy formulas — was authored, designed, and independently validated by Nishikant Wase. The 79-unit test suite and 10 mass accuracy benchmarks (≤0.05 mDa vs. Unimod reference values) confirm the correctness of the core mass engine.
+
+This disclosure follows best practices for transparent AI-assisted software development. For research use only — users should independently validate all outputs against their own experimental data.
+
+---
+
 ## Author
 
 **Nishikant Wase, PhD** — [nishikant.wase@gmail.com](mailto:nishikant.wase@gmail.com)  
