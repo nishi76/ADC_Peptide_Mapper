@@ -215,9 +215,9 @@ ui <- bs4DashPage(
       # ── TAB 1: INPUT & SETUP ──────────────────────────────────────────────
       bs4TabItem(tabName = "tab_input",
         fluidRow(
-          bs4Card(title = "ADC FASTA Input", width = 7, status = "navy", collapsible = FALSE,
+          bs4Card(title = "ADC FASTA Input", width = 8, status = "navy", collapsible = FALSE,
             tags$img(src = "splash.png",
-                     style = "float:right; width:340px; margin:0 0 12px 18px;
+                     style = "width:100%; display:block; margin:0 0 14px 0;
                               border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.10);"),
             tags$div(class = "section-header", "ADC Name & Sequence"),
             textInput("adc_name", "ADC Name (used in all outputs):",
@@ -258,7 +258,7 @@ ui <- bs4DashPage(
             )
           ),
 
-          bs4Card(title = "Background Proteome & Digest Settings", width = 5,
+          bs4Card(title = "Background Proteome & Digest Settings", width = 4,
             status = "primary", collapsible = FALSE,
             tags$div(class = "section-header", "Enzyme & Cleavage Parameters"),
             selectInput("enzyme_id", "Primary Enzyme:",
