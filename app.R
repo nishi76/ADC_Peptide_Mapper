@@ -215,14 +215,6 @@ ui <- bs4DashPage(
       # ── TAB 1: INPUT & SETUP ──────────────────────────────────────────────
       bs4TabItem(tabName = "tab_input",
         fluidRow(
-          column(12,
-            tags$img(src = "splash.png",
-                     style = "width:100%; max-width:960px; display:block;
-                              margin:0 auto 18px auto; border-radius:8px;
-                              box-shadow:0 2px 10px rgba(0,0,0,0.10);")
-          )
-        ),
-        fluidRow(
           bs4Card(title = "ADC FASTA Input", width = 7, status = "navy", collapsible = FALSE,
             tags$div(class = "section-header", "ADC Name & Sequence"),
             textInput("adc_name", "ADC Name (used in all outputs):",
