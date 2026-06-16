@@ -1,5 +1,7 @@
 # ADC Peptide Mapper v0.8
 
+<img src="www/splash.png" align="right" width="280px" style="margin-left:20px; border-radius:6px;"/>
+
 **R Shiny application** — In-silico proteolytic digest, uniqueness checking, DAR distribution modeling, linker biotransformation variable modifications, instrument-specific transition list export, heavy labelling, MS/MS search confirmation, and an AI assistant for Antibody-Drug Conjugates.
 
 **Live app:** https://nishiw.shinyapps.io/ADC_Peptide_Mapper/
