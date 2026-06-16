@@ -7,6 +7,14 @@
   min-height: calc(100vh - 56px);
 }
 
+/* ── Wider sidebar ──────────────────────────────────────────────────────────── */
+.main-sidebar, .sidebar {
+  width: 230px !important;
+}
+.content-wrapper, .main-footer {
+  margin-left: 230px !important;
+}
+
 /* Citation footer sits below the nav menu with a divider */
 .sidebar-citation {
   margin: 20px 0 0 0;

@@ -179,6 +179,12 @@ ui <- bs4DashPage(
 
   sidebar = bs4DashSidebar(
     skin = "dark", status = "navy",
+    tags$div(style = "padding:16px 16px 8px 16px; text-align:center;",
+      tags$img(src = "splash.png",
+               style = "width:180px; height:180px; object-fit:cover;
+                        border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.35);
+                        display:block; margin:0 auto;")
+    ),
     bs4SidebarMenu(id = "sidebar_menu",
       bs4SidebarMenuItem("Input & Setup",    tabName = "tab_input",   icon = icon("upload")),
       bs4SidebarMenuItem("Modifications",    tabName = "tab_mods",    icon = icon("flask")),
@@ -215,10 +221,7 @@ ui <- bs4DashPage(
       # ── TAB 1: INPUT & SETUP ──────────────────────────────────────────────
       bs4TabItem(tabName = "tab_input",
         fluidRow(
-          bs4Card(title = "ADC FASTA Input", width = 8, status = "navy", collapsible = FALSE,
-            tags$img(src = "splash.png",
-                     style = "width:100%; display:block; margin:0 0 14px 0;
-                              border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.10);"),
+          bs4Card(title = "ADC FASTA Input", width = 7, status = "navy", collapsible = FALSE,
             tags$div(class = "section-header", "ADC Name & Sequence"),
             textInput("adc_name", "ADC Name (used in all outputs):",
                       placeholder = "e.g. Trastuzumab-DXd", width = "100%"),
@@ -258,7 +261,7 @@ ui <- bs4DashPage(
             )
           ),
 
-          bs4Card(title = "Background Proteome & Digest Settings", width = 4,
+          bs4Card(title = "Background Proteome & Digest Settings", width = 5,
             status = "primary", collapsible = FALSE,
             tags$div(class = "section-header", "Enzyme & Cleavage Parameters"),
             selectInput("enzyme_id", "Primary Enzyme:",
