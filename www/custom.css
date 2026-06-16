@@ -9,10 +9,10 @@
 
 /* ── Wider sidebar ──────────────────────────────────────────────────────────── */
 .main-sidebar, .sidebar {
-  width: 230px !important;
+  width: 220px !important;
 }
 .content-wrapper, .main-footer {
-  margin-left: 230px !important;
+  margin-left: 220px !important;
 }
 
 /* Citation footer sits below the nav menu with a divider */
