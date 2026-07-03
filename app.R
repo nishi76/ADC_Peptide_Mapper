@@ -188,35 +188,77 @@ ui <- bs4DashPage(
                         display:block; margin:0 auto;")
     ),
     bs4SidebarMenu(id = "sidebar_menu",
+
       tags$span(class = "nav-group-label", "Sequence Analysis"),
-      bs4SidebarMenuItem("Input & Setup",    tabName = "tab_input",   icon = icon("upload")),
-      bs4SidebarMenuItem("Modifications",    tabName = "tab_mods",    icon = icon("flask")),
-      bs4SidebarMenuItem("Peptide Results",  tabName = "tab_results", icon = icon("table")),
-      bs4SidebarMenuItem("Transition List",  tabName = "tab_trans",   icon = icon("list")),
-      bs4SidebarMenuItem("Heavy Labelling",  tabName = "tab_heavy",   icon = icon("weight-hanging")),
-      bs4SidebarMenuItem("MS/MS Search",     tabName = "tab_search",  icon = icon("magnifying-glass")),
-      bs4SidebarMenuItem("MRM Assessment",   tabName = "tab_mrm",     icon = icon("chart-area")),
+
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "1"), "Input & Setup"),
+        tabName = "tab_input", icon = icon("circle")
+      ),
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "2"), "Modifications"),
+        tabName = "tab_mods", icon = icon("circle")
+      ),
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "3"), "Peptide Results"),
+        tabName = "tab_results", icon = icon("circle")
+      ),
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "4"), "Transition List"),
+        tabName = "tab_trans", icon = icon("circle")
+      ),
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "5"), "Heavy Labelling"),
+        tabName = "tab_heavy", icon = icon("circle")
+      ),
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "6"), "MS/MS Search"),
+        tabName = "tab_search", icon = icon("circle")
+      ),
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "7"), "MRM Assessment"),
+        tabName = "tab_mrm", icon = icon("circle")
+      ),
+
       tags$span(class = "nav-group-label", "ADC Design"),
-      bs4SidebarMenuItem("ADC Design",       tabName = "tab_adc_design",   icon = icon("atom")),
-      bs4SidebarMenuItem("Target Biology",   tabName = "tab_target_bio",   icon = icon("circle-nodes")),
-      bs4SidebarMenuItem("Antibody",         tabName = "tab_ab_char",      icon = icon("shield-halved")),
-      bs4SidebarMenuItem("PK & Efficacy",    tabName = "tab_pk",           icon = icon("chart-line")),
+
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "8"), "ADC Design"),
+        tabName = "tab_adc_design", icon = icon("circle")
+      ),
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "9"), "Target Biology"),
+        tabName = "tab_target_bio", icon = icon("circle")
+      ),
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "10"), "Antibody"),
+        tabName = "tab_ab_char", icon = icon("circle")
+      ),
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "11"), "PK & Efficacy"),
+        tabName = "tab_pk", icon = icon("circle")
+      ),
+
       tags$span(class = "nav-group-label", "Assistant"),
-      bs4SidebarMenuItem("AI Assistant",     tabName = "tab_ai",      icon = icon("robot"))
+
+      bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "♥"), "AI Assistant"),
+        tabName = "tab_ai", icon = icon("circle")
+      )
     ),
     tags$div(class = "sidebar-citation",
-      tags$div(style="font-weight:600; color:rgba(255,255,255,0.85); margin-bottom:3px;",
+      tags$div(style="font-weight:600; margin-bottom:3px;",
                icon("dna"), " ADC Peptide Mapper v1.0"),
       tags$div(HTML("&#169; 2026 Nishikant Wase")),
       tags$div(tags$a(
         href   = "https://doi.org/10.5281/zenodo.20681412",
         target = "_blank",
-        style  = "color:rgba(100,180,255,0.85); text-decoration:none;",
+        style  = "color:var(--teal); text-decoration:none;",
         icon("book-open"), " 10.5281/zenodo.20681412"
       )),
       tags$div(style="margin-top:3px;",
         tags$a(href="mailto:nishikant.wase@gmail.com",
-               style="color:rgba(255,255,255,0.5); text-decoration:none; font-size:10px;",
+               style="color:var(--grey-400); text-decoration:none; font-size:10px;",
                icon("envelope"), " nishikant.wase@gmail.com")
       )
     )
