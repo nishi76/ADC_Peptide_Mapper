@@ -888,11 +888,10 @@ ui <- bs4DashPage(
       bs4TabItem(tabName = "tab_adc_design",
         fluidRow(
           column(12,
-            bs4TabCard(id = "adc_design_tabs", width = 12, side = "left",
-              title = "ADC Design", solidHeader = TRUE, collapsible = FALSE,
+            tabsetPanel(id = "adc_design_tabs",
 
               # Sub-tab A: Linker Chemistry
-              bs4TabPanel(tabName = "Linker Chemistry", active = TRUE,
+              tabPanel(title = "Linker Chemistry",
                 fluidRow(
                   column(12,
                     bs4Card(title = "Linker Chemistry Reference", width = 12,
@@ -907,7 +906,7 @@ ui <- bs4DashPage(
               ),
 
               # Sub-tab B: Payload Selection
-              bs4TabPanel(tabName = "Payload Selection",
+              tabPanel(title = "Payload Selection",
                 fluidRow(
                   column(8,
                     bs4Card(title = "Payload Reference Database", width = 12,
@@ -935,7 +934,7 @@ ui <- bs4DashPage(
               ),
 
               # Sub-tab C: Deconjugation Prediction
-              bs4TabPanel(tabName = "Deconjugation Prediction",
+              tabPanel(title = "Deconjugation Prediction",
                 fluidRow(
                   column(4,
                     bs4Card(title = "Deconjugation Parameters", width = 12,
@@ -990,11 +989,10 @@ ui <- bs4DashPage(
       bs4TabItem(tabName = "tab_target_bio",
         fluidRow(
           column(12,
-            bs4TabCard(id = "target_bio_tabs", width = 12, side = "left",
-              title = "Target Biology", solidHeader = TRUE, collapsible = FALSE,
+            tabsetPanel(id = "target_bio_tabs",
 
               # Sub-tab A: Internalization
-              bs4TabPanel(tabName = "Internalization", active = TRUE,
+              tabPanel(title = "Internalization",
                 fluidRow(
                   column(5,
                     bs4Card(title = "Target Internalization Score", width = 12,
@@ -1024,7 +1022,7 @@ ui <- bs4DashPage(
               ),
 
               # Sub-tab B: Surface Accessibility
-              bs4TabPanel(tabName = "Surface Accessibility",
+              tabPanel(title = "Surface Accessibility",
                 fluidRow(
                   column(5,
                     bs4Card(title = "Surface Accessibility Assessment", width = 12,
@@ -1058,11 +1056,10 @@ ui <- bs4DashPage(
       bs4TabItem(tabName = "tab_ab_char",
         fluidRow(
           column(12,
-            bs4TabCard(id = "ab_char_tabs", width = 12, side = "left",
-              title = "Antibody Characterization", solidHeader = TRUE, collapsible = FALSE,
+            tabsetPanel(id = "ab_char_tabs",
 
               # Sub-tab A: Binding Affinity
-              bs4TabPanel(tabName = "Binding Affinity", active = TRUE,
+              tabPanel(title = "Binding Affinity",
                 fluidRow(
                   column(5,
                     bs4Card(title = "Binding Affinity Scoring", width = 12,
@@ -1090,7 +1087,7 @@ ui <- bs4DashPage(
               ),
 
               # Sub-tab B: Epitope Mapping
-              bs4TabPanel(tabName = "Epitope Mapping",
+              tabPanel(title = "Epitope Mapping",
                 fluidRow(
                   column(5,
                     bs4Card(title = "Epitope Characterization", width = 12,
@@ -1119,7 +1116,7 @@ ui <- bs4DashPage(
               ),
 
               # Sub-tab C: FcRn / Half-Life
-              bs4TabPanel(tabName = "FcRn / Half-Life",
+              tabPanel(title = "FcRn / Half-Life",
                 fluidRow(
                   column(5,
                     bs4Card(title = "Half-Life Predictor", width = 12,
@@ -1165,11 +1162,10 @@ ui <- bs4DashPage(
       bs4TabItem(tabName = "tab_pk",
         fluidRow(
           column(12,
-            bs4TabCard(id = "pk_tabs", width = 12, side = "left",
-              title = "PK & Efficacy", solidHeader = TRUE, collapsible = FALSE,
+            tabsetPanel(id = "pk_tabs",
 
               # Sub-tab A: Bystander Effect
-              bs4TabPanel(tabName = "Bystander Effect", active = TRUE,
+              tabPanel(title = "Bystander Effect",
                 fluidRow(
                   column(5,
                     bs4Card(title = "Bystander Effect Scorer", width = 12,
@@ -1193,7 +1189,7 @@ ui <- bs4DashPage(
               ),
 
               # Sub-tab B: PK Simulation
-              bs4TabPanel(tabName = "PK Simulation",
+              tabPanel(title = "PK Simulation",
                 fluidRow(
                   column(4,
                     bs4Card(title = "PK Simulation Parameters", width = 12,
