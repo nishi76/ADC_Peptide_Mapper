@@ -1,7 +1,7 @@
 # ============================================================
-#  ADC Peptide Mapper v0.8 — R Shiny Application
-#  6-tab version: Input & Setup | Modifications | Peptide Results |
-#                 Transition List | Heavy Labelling | MS/MS Search | ChatBot
+#  ADC Peptide Mapper v1.0 — R Shiny Application
+#  Full ADC design platform: Sequence ingestion | Peptide mapping |
+#  Transition lists | ADC Design | Target Biology | Antibody Characterization
 #  Author: Nishikant Wase (nishikant.wase@gmail.com)
 #  SETUP: Run build_background_db.R once to generate data/*.rds files.
 #
@@ -25,7 +25,9 @@ if (requireNamespace("shinycssloaders", quietly = TRUE)) {
 
 for (.module in c("R/digest.R", "R/modifications.R", "R/uniqueness.R",
                   "R/transitions.R", "R/export.R", "R/msearch.R",
-                  "R/isotopes.R", "R/dar.R")) {
+                  "R/isotopes.R", "R/dar.R",
+                  "R/adc_design.R", "R/target_biology.R",
+                  "R/antibody_characterization.R")) {
   tryCatch(
     source(.module),
     error = function(e) stop(sprintf(
@@ -114,7 +116,7 @@ SPECIES_REGISTRY <- list(
   custom = list(label = "Custom FASTA (upload below)",  rds_file = NULL)
 )
 
-message("ADC Peptide Mapper v0.8: loading bundled background databases...")
+message("ADC Peptide Mapper v1.0: loading bundled background databases...")
 BUNDLED_BG <- list()
 for (key in setdiff(names(SPECIES_REGISTRY), "custom")) {
   spec <- SPECIES_REGISTRY[[key]]
@@ -148,7 +150,7 @@ ui <- bs4DashPage(
   footer = bs4DashFooter(
     left = tags$span(
       style = "font-size:11px; color:#7f8c8d;",
-      tags$b("ADC Peptide Mapper v0.8"),
+      tags$b("ADC Peptide Mapper v1.0"),
       " — In-silico ADC digest & transition list generator. ",
       tags$a("Cite via Zenodo", href = "https://doi.org/10.5281/zenodo.20681412",
              target = "_blank", style = "color:#3498db;"),
@@ -166,7 +168,7 @@ ui <- bs4DashPage(
   ),
   preloader = list(
     html = tagList(tags$div(style = "text-align:center; padding-top:80px;",
-      tags$h4("ADC Peptide Mapper v0.8", style = "color:#1a2940; font-weight:700;"),
+      tags$h4("ADC Peptide Mapper v1.0", style = "color:#1a2940; font-weight:700;"),
       tags$p("Loading background databases...", style = "color:#7f8c8d;"))),
     color = "#f4f6f9"),
 
@@ -186,17 +188,24 @@ ui <- bs4DashPage(
                         display:block; margin:0 auto;")
     ),
     bs4SidebarMenu(id = "sidebar_menu",
+      tags$span(class = "nav-group-label", "Sequence Analysis"),
       bs4SidebarMenuItem("Input & Setup",    tabName = "tab_input",   icon = icon("upload")),
       bs4SidebarMenuItem("Modifications",    tabName = "tab_mods",    icon = icon("flask")),
       bs4SidebarMenuItem("Peptide Results",  tabName = "tab_results", icon = icon("table")),
       bs4SidebarMenuItem("Transition List",  tabName = "tab_trans",   icon = icon("list")),
       bs4SidebarMenuItem("Heavy Labelling",  tabName = "tab_heavy",   icon = icon("weight-hanging")),
-      bs4SidebarMenuItem("MS/MS Search",    tabName = "tab_search",  icon = icon("magnifying-glass")),
-      bs4SidebarMenuItem("AI Assistant",    tabName = "tab_ai",      icon = icon("robot"))
+      bs4SidebarMenuItem("MS/MS Search",     tabName = "tab_search",  icon = icon("magnifying-glass")),
+      tags$span(class = "nav-group-label", "ADC Design"),
+      bs4SidebarMenuItem("ADC Design",       tabName = "tab_adc_design",   icon = icon("atom")),
+      bs4SidebarMenuItem("Target Biology",   tabName = "tab_target_bio",   icon = icon("circle-nodes")),
+      bs4SidebarMenuItem("Antibody",         tabName = "tab_ab_char",      icon = icon("shield-halved")),
+      bs4SidebarMenuItem("PK & Efficacy",    tabName = "tab_pk",           icon = icon("chart-line")),
+      tags$span(class = "nav-group-label", "Assistant"),
+      bs4SidebarMenuItem("AI Assistant",     tabName = "tab_ai",      icon = icon("robot"))
     ),
     tags$div(class = "sidebar-citation",
       tags$div(style="font-weight:600; color:rgba(255,255,255,0.85); margin-bottom:3px;",
-               icon("dna"), " ADC Peptide Mapper v0.8"),
+               icon("dna"), " ADC Peptide Mapper v1.0"),
       tags$div(HTML("&#169; 2026 Nishikant Wase")),
       tags$div(tags$a(
         href   = "https://doi.org/10.5281/zenodo.20681412",
@@ -214,7 +223,13 @@ ui <- bs4DashPage(
 
   body = bs4DashBody(
     useShinyjs(),
-    tags$head(tags$link(rel = "stylesheet", type = "text/css", href = "custom.css")),
+    tags$head(
+      tags$link(rel = "preconnect", href = "https://fonts.googleapis.com"),
+      tags$link(rel = "preconnect", href = "https://fonts.gstatic.com", crossorigin = NA),
+      tags$link(rel = "stylesheet",
+        href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"),
+      tags$link(rel = "stylesheet", type = "text/css", href = "custom.css")
+    ),
 
     bs4TabItems(
 
@@ -312,7 +327,7 @@ ui <- bs4DashPage(
             solidHeader = FALSE,
             fluidRow(
               column(6,
-                tags$h6("ADC Peptide Mapper v0.8", style = "font-weight:700; margin-bottom:4px;"),
+                tags$h6("ADC Peptide Mapper v1.0", style = "font-weight:700; margin-bottom:4px;"),
                 tags$p(style = "font-size:12px; color:#555; margin-bottom:6px;",
                   "In-silico digest and LC-MS/MS transition list generator for ",
                   "Antibody-Drug Conjugate peptide mapping studies."),
@@ -863,6 +878,353 @@ ui <- bs4DashPage(
               # Chat message box — rendered via htmlOutput so we can inject HTML
               div(id = "chat_box",
                 htmlOutput("chat_messages")
+              )
+            )
+          )
+        )
+      ),
+
+      # ── Tab: ADC Design ─────────────────────────────────────────────────────
+      bs4TabItem(tabName = "tab_adc_design",
+        fluidRow(
+          column(12,
+            bs4TabCard(id = "adc_design_tabs", width = 12, side = "left",
+              title = "ADC Design", solidHeader = TRUE, collapsible = FALSE,
+
+              # Sub-tab A: Linker Chemistry
+              bs4TabPanel(tabName = "Linker Chemistry", active = TRUE,
+                fluidRow(
+                  column(12,
+                    bs4Card(title = "Linker Chemistry Reference", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      tags$p(style = "color:#64748b; font-size:13px; margin-bottom:12px;",
+                        "Comprehensive reference table of clinically-relevant and experimental ADC linkers. ",
+                        "Filter by type, stability, or approved examples."),
+                      DT::DTOutput("linker_table_dt")
+                    )
+                  )
+                )
+              ),
+
+              # Sub-tab B: Payload Selection
+              bs4TabPanel(tabName = "Payload Selection",
+                fluidRow(
+                  column(8,
+                    bs4Card(title = "Payload Reference Database", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      tags$p(style = "color:#64748b; font-size:13px; margin-bottom:12px;",
+                        "Curated database of ADC payloads with potency, MOA, bystander profile, and approved applications."),
+                      DT::DTOutput("payload_table_dt")
+                    )
+                  ),
+                  column(4,
+                    bs4Card(title = "Payload Comparison", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      tags$p(class = "section-header", "Select payloads to compare"),
+                      selectizeInput("payload_compare_a", "Payload A:",
+                        choices = NULL, width = "100%"),
+                      selectizeInput("payload_compare_b", "Payload B:",
+                        choices = NULL, width = "100%"),
+                      actionButton("btn_compare_payloads", "Compare",
+                        class = "btn-run btn-block", icon = icon("scale-balanced")),
+                      tags$hr(),
+                      uiOutput("payload_comparison_ui")
+                    )
+                  )
+                )
+              ),
+
+              # Sub-tab C: Deconjugation Prediction
+              bs4TabPanel(tabName = "Deconjugation Prediction",
+                fluidRow(
+                  column(4,
+                    bs4Card(title = "Deconjugation Parameters", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      tags$p(class = "section-header", "Linker & Conjugation"),
+                      selectInput("deconj_chemistry", "Linker Chemistry:",
+                        choices = c(
+                          "Maleimide-thiol (MC-VC-PABC / SMCC)",
+                          "Disulfide (SPDB / Sulfo-SPDB)",
+                          "Acid-labile hydrazone (CL2A)",
+                          "Oxime (aminooxy)",
+                          "NHS ester / Lysine (SMCC)",
+                          "Enzymatic / site-specific (sortase, click)"
+                        ), width = "100%"),
+                      selectInput("deconj_site", "Conjugation Site:",
+                        choices = c(
+                          "Cys-engineered",
+                          "Lys (NHS ester / non-specific)",
+                          "Fab-Cys",
+                          "Fc-glycan",
+                          "N-term"
+                        ), width = "100%"),
+                      sliderInput("deconj_initial_dar", "Initial DAR:",
+                        min = 1, max = 8, value = 4, step = 1),
+                      sliderInput("deconj_days", "Simulation period (days):",
+                        min = 7, max = 42, value = 21, step = 1),
+                      actionButton("btn_run_deconj", "Run Prediction",
+                        class = "btn-run btn-block", icon = icon("chart-line")),
+                      tags$hr(),
+                      uiOutput("deconj_stability_badge"),
+                      uiOutput("deconj_warning_ui")
+                    )
+                  ),
+                  column(8,
+                    bs4Card(title = "DAR Decay Curve", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      plotOutput("deconj_plot", height = "380px"),
+                      tags$hr(),
+                      uiOutput("deconj_summary_ui"),
+                      downloadButton("btn_download_deconj", "Download DAR table (.csv)",
+                        class = "btn-sm", style = "margin-top:8px;")
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      ),
+
+      # ── Tab: Target Biology ─────────────────────────────────────────────────
+      bs4TabItem(tabName = "tab_target_bio",
+        fluidRow(
+          column(12,
+            bs4TabCard(id = "target_bio_tabs", width = 12, side = "left",
+              title = "Target Biology", solidHeader = TRUE, collapsible = FALSE,
+
+              # Sub-tab A: Internalization
+              bs4TabPanel(tabName = "Internalization", active = TRUE,
+                fluidRow(
+                  column(5,
+                    bs4Card(title = "Target Internalization Score", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      tags$p(class = "section-header", "Target Input"),
+                      tags$p(style = "color:#64748b; font-size:13px;",
+                        "Enter a target antigen name (e.g. HER2, EGFR, CD22, Trop2, BCMA). ",
+                        "The curated database covers 40+ clinically-validated ADC targets."),
+                      textInput("intern_target", "Target name:", placeholder = "e.g. HER2",
+                        width = "100%"),
+                      actionButton("btn_intern_score", "Score Internalization",
+                        class = "btn-run btn-block", icon = icon("arrow-down-to-bracket")),
+                      tags$hr(),
+                      uiOutput("intern_score_ui")
+                    )
+                  ),
+                  column(7,
+                    bs4Card(title = "Internalization Details", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      uiOutput("intern_detail_ui"),
+                      tags$hr(),
+                      tags$p(class = "section-header", "Known ADC Targets — Internalization Overview"),
+                      DT::DTOutput("internalization_ref_dt")
+                    )
+                  )
+                )
+              ),
+
+              # Sub-tab B: Surface Accessibility
+              bs4TabPanel(tabName = "Surface Accessibility",
+                fluidRow(
+                  column(5,
+                    bs4Card(title = "Surface Accessibility Assessment", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      tags$p(class = "section-header", "Target Input"),
+                      textInput("surface_target", "Target name:", placeholder = "e.g. EGFR",
+                        width = "100%"),
+                      actionButton("btn_surface_score", "Assess Accessibility",
+                        class = "btn-run btn-block", icon = icon("layer-group")),
+                      tags$hr(),
+                      uiOutput("surface_score_ui")
+                    )
+                  ),
+                  column(7,
+                    bs4Card(title = "Surface Accessibility Details", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      uiOutput("surface_detail_ui"),
+                      tags$hr(),
+                      tags$p(class = "section-header", "Curated Surface Accessibility Reference"),
+                      DT::DTOutput("surface_ref_dt")
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      ),
+
+      # ── Tab: Antibody Characterization ──────────────────────────────────────
+      bs4TabItem(tabName = "tab_ab_char",
+        fluidRow(
+          column(12,
+            bs4TabCard(id = "ab_char_tabs", width = 12, side = "left",
+              title = "Antibody Characterization", solidHeader = TRUE, collapsible = FALSE,
+
+              # Sub-tab A: Binding Affinity
+              bs4TabPanel(tabName = "Binding Affinity", active = TRUE,
+                fluidRow(
+                  column(5,
+                    bs4Card(title = "Binding Affinity Scoring", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      tags$p(class = "section-header", "Kinetic Parameters"),
+                      numericInput("ba_kd_nm", "KD (nM):", value = 5, min = 0.0001,
+                        max = 10000, step = 0.01, width = "100%"),
+                      numericInput("ba_kon", "kon (M⁻¹s⁻¹, optional):", value = NA,
+                        min = 0, width = "100%"),
+                      numericInput("ba_koff", "koff (s⁻¹, optional):", value = NA,
+                        min = 0, width = "100%"),
+                      actionButton("btn_ba_score", "Score Affinity",
+                        class = "btn-run btn-block", icon = icon("bullseye")),
+                      tags$hr(),
+                      uiOutput("ba_result_ui")
+                    )
+                  ),
+                  column(7,
+                    bs4Card(title = "ADC Affinity Guidelines", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      uiOutput("ba_guidelines_ui")
+                    )
+                  )
+                )
+              ),
+
+              # Sub-tab B: Epitope Mapping
+              bs4TabPanel(tabName = "Epitope Mapping",
+                fluidRow(
+                  column(5,
+                    bs4Card(title = "Epitope Characterization", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      tags$p(class = "section-header", "Epitope Parameters"),
+                      textInput("epitope_region", "Epitope region / description:",
+                        placeholder = "e.g. Domain IV of HER2 ECD", width = "100%"),
+                      selectInput("epitope_type", "Epitope type:",
+                        choices = c("Unknown", "Linear / Sequential",
+                                    "Conformational / Discontinuous",
+                                    "Glycan-dependent"), width = "100%"),
+                      checkboxInput("epitope_conformation", "Conformation-sensitive binding", FALSE),
+                      actionButton("btn_epitope_char", "Characterize Epitope",
+                        class = "btn-run btn-block", icon = icon("puzzle-piece")),
+                      tags$hr(),
+                      uiOutput("epitope_result_ui")
+                    )
+                  ),
+                  column(7,
+                    bs4Card(title = "Epitope Analysis", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      uiOutput("epitope_detail_ui")
+                    )
+                  )
+                )
+              ),
+
+              # Sub-tab C: FcRn / Half-Life
+              bs4TabPanel(tabName = "FcRn / Half-Life",
+                fluidRow(
+                  column(5,
+                    bs4Card(title = "Half-Life Predictor", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      tags$p(class = "section-header", "Antibody Format"),
+                      selectInput("hl_subclass", "IgG subclass:",
+                        choices = c("IgG1","IgG2","IgG3","IgG4"), width = "100%"),
+                      checkboxGroupInput("hl_fc_mutations", "Fc engineering mutations:",
+                        choices = c(
+                          "YTE (M252Y/S254T/T256E)",
+                          "LS (M428L/N434S)",
+                          "M428L/N434S",
+                          "GASDALIE (G236A/S239D/A330L/I332E)",
+                          "N434H"
+                        )),
+                      tags$p(class = "section-header", "ADC Payload Parameters"),
+                      sliderInput("hl_dar", "DAR:", min = 1, max = 8, value = 4, step = 1),
+                      selectInput("hl_site", "Conjugation site:",
+                        choices = c("Cys-engineered","Lys (NHS ester / non-specific)",
+                                    "Fab-Cys","Fc-glycan","N-term"), width = "100%"),
+                      actionButton("btn_hl_predict", "Predict Half-Life",
+                        class = "btn-run btn-block", icon = icon("clock")),
+                      tags$hr(),
+                      uiOutput("hl_result_ui")
+                    )
+                  ),
+                  column(7,
+                    bs4Card(title = "Half-Life Breakdown", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      uiOutput("hl_detail_ui"),
+                      tags$hr(),
+                      plotOutput("hl_bar_plot", height = "260px")
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      ),
+
+      # ── Tab: PK & Efficacy ──────────────────────────────────────────────────
+      bs4TabItem(tabName = "tab_pk",
+        fluidRow(
+          column(12,
+            bs4TabCard(id = "pk_tabs", width = 12, side = "left",
+              title = "PK & Efficacy", solidHeader = TRUE, collapsible = FALSE,
+
+              # Sub-tab A: Bystander Effect
+              bs4TabPanel(tabName = "Bystander Effect", active = TRUE,
+                fluidRow(
+                  column(5,
+                    bs4Card(title = "Bystander Effect Scorer", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      tags$p(class = "section-header", "Payload Selection"),
+                      selectizeInput("bystander_payload", "Payload:",
+                        choices = NULL, width = "100%"),
+                      actionButton("btn_bystander_score", "Score Bystander Effect",
+                        class = "btn-run btn-block", icon = icon("radiation")),
+                      tags$hr(),
+                      uiOutput("bystander_score_ui")
+                    )
+                  ),
+                  column(7,
+                    bs4Card(title = "Bystander Analysis", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      uiOutput("bystander_detail_ui")
+                    )
+                  )
+                )
+              ),
+
+              # Sub-tab B: PK Simulation
+              bs4TabPanel(tabName = "PK Simulation",
+                fluidRow(
+                  column(4,
+                    bs4Card(title = "PK Simulation Parameters", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      tags$p(class = "section-header", "Dosing"),
+                      numericInput("pk_dose", "Dose (mg/kg):", value = 3.6,
+                        min = 0.1, max = 50, step = 0.1, width = "100%"),
+                      tags$p(class = "section-header", "PK Parameters"),
+                      numericInput("pk_halflife", "Antibody half-life (days):",
+                        value = 18, min = 1, max = 42, step = 0.5, width = "100%"),
+                      sliderInput("pk_dar", "DAR:", min = 1, max = 8, value = 4, step = 1),
+                      numericInput("pk_deconj_hl", "Deconjugation t½ (days):",
+                        value = 5, min = 0.5, max = 30, step = 0.5, width = "100%"),
+                      sliderInput("pk_days", "Simulation period (days):",
+                        min = 7, max = 42, value = 21, step = 1),
+                      actionButton("btn_pk_sim", "Run PK Simulation",
+                        class = "btn-run btn-block", icon = icon("chart-area")),
+                      tags$hr(),
+                      downloadButton("btn_download_pk", "Download PK table (.csv)",
+                        class = "btn-sm", style = "margin-top:4px;")
+                    )
+                  ),
+                  column(8,
+                    bs4Card(title = "PK Concentration-Time Profile", width = 12,
+                      solidHeader = FALSE, collapsible = FALSE,
+                      plotOutput("pk_plot", height = "380px"),
+                      tags$hr(),
+                      uiOutput("pk_summary_ui")
+                    )
+                  )
+                )
               )
             )
           )
@@ -2568,7 +2930,7 @@ server <- function(input, output, session) {
     }
 
     sprintf(
-"You are an expert scientific assistant embedded inside **ADC Peptide Mapper v0.8**,
+"You are an expert scientific assistant embedded inside **ADC Peptide Mapper v1.0**,
 an R Shiny application for Antibody-Drug Conjugate (ADC) peptide mapping.
 
 ## Your role
@@ -3052,7 +3414,7 @@ for a detailed explanation. If asked for a table, use markdown table format.",
     }, character(1))
 
     paste0(
-      "ADC Peptide Mapper v0.8\n",
+      "ADC Peptide Mapper v1.0\n",
       "────────────────────────────────\n",
       sprintf("R version   : %s\n", R.version.string),
       sprintf("Platform    : %s\n", si$platform),
@@ -3065,6 +3427,596 @@ for a detailed explanation. If asked for a table, use markdown table format.",
       "Mass accuracy: ≤0.05 mDa vs Unimod\n"
     )
   })
+
+  # ============================================================
+  #  NEW TABS — ADC Design, Target Biology, Antibody Characterization, PK
+  # ============================================================
+
+  # ── Linker table ────────────────────────────────────────────────────────────
+  output$linker_table_dt <- DT::renderDT({
+    dt <- get_linker_table()
+    DT::datatable(dt[, .(Name, Type, Chemistry, Cleavage_trigger,
+                          t_half_plasma_days, Stability_rank, Approved_examples)],
+      options = list(pageLength = 7, scrollX = TRUE, dom = "ftip"),
+      rownames = FALSE,
+      colnames = c("Linker","Type","Chemistry","Cleavage trigger","t½ plasma","Stability","Approved ADCs")
+    ) |>
+      DT::formatStyle("Stability_rank",
+        backgroundColor = DT::styleEqual(
+          c("A+","A","B","C","D"),
+          c("#ccfbf1","#dcfce7","#fef3c7","#fee2e2","#fecaca")))
+  })
+
+  # ── Payload table ────────────────────────────────────────────────────────────
+  payload_db_rv <- reactive({ get_payload_table() })
+
+  output$payload_table_dt <- DT::renderDT({
+    dt <- payload_db_rv()
+    DT::datatable(
+      dt[, .(Name, Class, MOA, IC50_nM, DAR_optimal, Cell_permeable_bystander,
+             Approved_ADCs)],
+      options = list(pageLength = 8, scrollX = TRUE, dom = "ftip"),
+      rownames = FALSE,
+      colnames = c("Payload","Class","MOA","IC50 (nM)","Optimal DAR","Bystander+","Approved ADCs")
+    ) |>
+      DT::formatStyle("Cell_permeable_bystander",
+        backgroundColor = DT::styleEqual(c(TRUE, FALSE), c("#ccfbf1","#fee2e2"))) |>
+      DT::formatStyle("IC50_nM",
+        background = DT::styleColorBar(range(payload_db_rv()$IC50_nM), "#ccfbf1"),
+        backgroundSize = "100% 88%", backgroundRepeat = "no-repeat",
+        backgroundPosition = "center")
+  })
+
+  observe({
+    choices <- payload_db_rv()$Name
+    updateSelectizeInput(session, "payload_compare_a", choices = choices, selected = "MMAE")
+    updateSelectizeInput(session, "payload_compare_b", choices = choices, selected = "DM1")
+    updateSelectizeInput(session, "bystander_payload",  choices = choices, selected = "MMAE")
+  })
+
+  # ── Payload comparison ───────────────────────────────────────────────────────
+  observeEvent(input$btn_compare_payloads, {
+    req(input$payload_compare_a, input$payload_compare_b)
+    dt <- payload_db_rv()
+
+    make_chip <- function(pname) {
+      row <- dt[Name == pname]
+      if (nrow(row) == 0) return(tags$div("Not found"))
+      bystander_cls <- if (isTRUE(row$Cell_permeable_bystander)) "bystander-pos" else ""
+      tags$div(class = "payload-chip",
+        tags$div(class = "payload-name", pname),
+        tags$div(
+          tags$span(class = "payload-ic50", row$IC50_nM),
+          tags$span(class = "payload-ic50-unit", " nM IC50")
+        ),
+        tags$div(
+          tags$span(class = "payload-tag", row$Class),
+          tags$span(class = paste("payload-tag", bystander_cls),
+            if (isTRUE(row$Cell_permeable_bystander)) "Bystander +" else "No bystander")
+        ),
+        tags$p(style="font-size:11px; color:#64748b; margin-top:8px;", row$Notes)
+      )
+    }
+
+    output$payload_comparison_ui <- renderUI({
+      tagList(
+        make_chip(input$payload_compare_a),
+        tags$div(style="height:8px;"),
+        make_chip(input$payload_compare_b)
+      )
+    })
+  })
+
+  # ── Deconjugation prediction ─────────────────────────────────────────────────
+  deconj_result <- reactiveVal(NULL)
+
+  observeEvent(input$btn_run_deconj, {
+    res <- predict_deconjugation(
+      chemistry   = input$deconj_chemistry,
+      site        = input$deconj_site,
+      initial_dar = input$deconj_initial_dar,
+      days        = input$deconj_days
+    )
+    deconj_result(res)
+  })
+
+  output$deconj_plot <- renderPlot({
+    res <- deconj_result()
+    if (is.null(res)) {
+      plot.new(); text(0.5, 0.5, "Set parameters and click Run Prediction",
+                       col = "#94a3b8", cex = 1.2); return(invisible())
+    }
+    plot_deconjugation(res)
+  })
+
+  output$deconj_stability_badge <- renderUI({
+    res <- deconj_result(); if (is.null(res)) return(NULL)
+    badge_cls <- switch(res$stability_class,
+      "A+" = "excellent", "A" = "excellent", "B" = "good",
+      "C"  = "borderline", "D" = "poor", "good")
+    tags$div(style = "margin-top:10px;",
+      tags$span(class = paste0("badge-", badge_cls),
+        paste0("Stability class ", res$stability_class, " — ", res$stability_label))
+    )
+  })
+
+  output$deconj_warning_ui <- renderUI({
+    res <- deconj_result(); if (is.null(res) || !nzchar(res$warning_msg)) return(NULL)
+    tags$div(class = "rationale-card", style = "margin-top:10px;",
+      tags$div(class = "rationale-title", icon("triangle-exclamation"), " Note"),
+      tags$p(style = "margin:0; font-size:12px;", res$warning_msg)
+    )
+  })
+
+  output$deconj_summary_ui <- renderUI({
+    res <- deconj_result(); if (is.null(res)) return(NULL)
+    tags$div(
+      fluidRow(
+        column(4, tags$div(style="text-align:center;",
+          tags$div(style="font-size:22px; font-weight:800; color:#0d9488;",
+            paste0(round(res$days_above_threshold, 1), " d")),
+          tags$div(style="font-size:11px; color:#64748b;", "Days above therapeutic DAR")
+        )),
+        column(4, tags$div(style="text-align:center;",
+          tags$div(style="font-size:22px; font-weight:800; color:#334155;",
+            paste0(res$t_half, " d")),
+          tags$div(style="font-size:11px; color:#64748b;", "Plasma half-life (t½)")
+        )),
+        column(4, tags$div(style="text-align:center;",
+          tags$div(style="font-size:22px; font-weight:800; color:#334155;",
+            round(res$therapeutic_threshold, 1)),
+          tags$div(style="font-size:11px; color:#64748b;", "Therapeutic DAR threshold")
+        ))
+      )
+    )
+  })
+
+  output$btn_download_deconj <- downloadHandler(
+    filename = function() paste0("DAR_decay_", Sys.Date(), ".csv"),
+    content  = function(file) {
+      res <- deconj_result()
+      if (!is.null(res)) write.csv(res$curve, file, row.names = FALSE)
+    }
+  )
+
+  # ── Internalization scoring ──────────────────────────────────────────────────
+  intern_result <- reactiveVal(NULL)
+
+  observeEvent(input$btn_intern_score, {
+    req(nzchar(trimws(input$intern_target %||% "")))
+    intern_result(score_internalization(input$intern_target))
+  })
+
+  output$intern_score_ui <- renderUI({
+    res <- intern_result(); if (is.null(res)) return(NULL)
+    score <- res$score
+    if (is.na(score)) {
+      return(tags$div(class = "rationale-card",
+        tags$div(class = "rationale-title", icon("circle-question"), " Target not found"),
+        tags$p(style="margin:0; font-size:12px;", res$mechanism)
+      ))
+    }
+    badge_cls <- if (score >= 8) "excellent" else if (score >= 6) "good" else
+                 if (score >= 4) "borderline" else "poor"
+    tags$div(
+      tags$div(style="margin-bottom:10px;",
+        tags$span(class = paste0("badge-", badge_cls), paste0(res$tier, " internalization")),
+        tags$span(style="margin-left:8px; font-size:13px; font-weight:600; color:#334155;",
+          res$target)
+      ),
+      tags$div(class = "score-gauge-wrap",
+        tags$div(class = "score-gauge-track",
+          tags$div(class = "score-gauge-fill", style = paste0("width:", score * 10, "%"))
+        ),
+        tags$span(class = "score-gauge-label", paste0(score, "/10"))
+      )
+    )
+  })
+
+  output$intern_detail_ui <- renderUI({
+    res <- intern_result()
+    if (is.null(res) || !res$found) {
+      return(tags$p(style="color:#94a3b8;",
+        "Enter a target name on the left and click Score Internalization."))
+    }
+    tagList(
+      tags$div(class = "rationale-card",
+        tags$div(class = "rationale-title", icon("circle-info"), " Receptor Class"),
+        tags$p(style="margin:0 0 6px 0; font-size:13px;", tags$b(res$receptor_class))
+      ),
+      tags$div(class = "rationale-card",
+        tags$div(class = "rationale-title", icon("arrow-down"), " Internalization Mechanism"),
+        tags$p(style="margin:0 0 6px 0; font-size:13px;", res$mechanism)
+      ),
+      tags$div(class = "rationale-card",
+        tags$div(class = "rationale-title", icon("book"), " Literature Reference"),
+        tags$p(style="margin:0; font-size:12px; color:#64748b;", res$literature)
+      )
+    )
+  })
+
+  output$internalization_ref_dt <- DT::renderDT({
+    dt <- .internalization_db[, .(Target, Score, Tier, Receptor_class)]
+    DT::datatable(dt, options = list(pageLength = 8, dom = "ftip"), rownames = FALSE,
+      colnames = c("Target","Score (1-10)","Tier","Receptor Class")) |>
+      DT::formatStyle("Tier",
+        backgroundColor = DT::styleEqual(
+          c("High","Moderate","Low"),
+          c("#ccfbf1","#fef3c7","#fee2e2")))
+  })
+
+  # ── Surface accessibility ────────────────────────────────────────────────────
+  surface_result <- reactiveVal(NULL)
+
+  observeEvent(input$btn_surface_score, {
+    req(nzchar(trimws(input$surface_target %||% "")))
+    surface_result(assess_surface_accessibility(input$surface_target))
+  })
+
+  output$surface_score_ui <- renderUI({
+    res <- surface_result(); if (is.null(res)) return(NULL)
+    score <- res$accessibility_score
+    if (is.na(score)) {
+      return(tags$div(class = "rationale-card",
+        tags$div(class = "rationale-title", icon("circle-question"), " Target not found"),
+        tags$p(style="margin:0; font-size:12px;", res$notes)
+      ))
+    }
+    badge_cls <- if (score >= 80) "excellent" else if (score >= 65) "good" else
+                 if (score >= 50) "borderline" else "poor"
+    tags$div(
+      tags$div(style="margin-bottom:10px;",
+        tags$span(class = paste0("badge-", badge_cls),
+          paste0(res$accessibility_tier, " accessibility")),
+        tags$span(style="margin-left:8px; font-size:13px; font-weight:600; color:#334155;",
+          res$target)
+      ),
+      tags$div(class = "score-gauge-wrap",
+        tags$div(class = "score-gauge-track",
+          tags$div(class = "score-gauge-fill", style = paste0("width:", score, "%"))
+        ),
+        tags$span(class = "score-gauge-label", paste0(score, "/100"))
+      ),
+      if (isTRUE(res$shed_secreted))
+        tags$div(class = "rationale-card", style="margin-top:10px; border-left-color:#f59e0b;",
+          tags$div(class="rationale-title", icon("triangle-exclamation"), " Shedding / Secreted form"),
+          tags$p(style="margin:0; font-size:12px;",
+            "This target has a known shed or secreted form. Circulating antigen may act as a decoy, reducing effective ADC binding at the tumor surface.")
+        )
+    )
+  })
+
+  output$surface_detail_ui <- renderUI({
+    res <- surface_result()
+    if (is.null(res) || !res$found) {
+      return(tags$p(style="color:#94a3b8;", "Enter a target name and click Assess Accessibility."))
+    }
+    tagList(
+      fluidRow(
+        column(4, tags$div(style="text-align:center; padding:10px;",
+          tags$div(style="font-size:20px; font-weight:800; color:#0d9488;",
+            res$ec_domains),
+          tags$div(style="font-size:11px; color:#64748b;", "Extracellular domains")
+        )),
+        column(4, tags$div(style="text-align:center; padding:10px;",
+          tags$div(style="font-size:20px; font-weight:800; color:#334155;",
+            res$tm_count),
+          tags$div(style="font-size:11px; color:#64748b;", "TM segments")
+        )),
+        column(4, tags$div(style="text-align:center; padding:10px;",
+          tags$div(style="font-size:20px; font-weight:800; color:#334155;",
+            res$expression_level),
+          tags$div(style="font-size:11px; color:#64748b;", "Surface expression")
+        ))
+      ),
+      tags$div(class = "rationale-card",
+        tags$div(class = "rationale-title", icon("circle-info"), " Notes"),
+        tags$p(style="margin:0; font-size:12px;", res$notes)
+      )
+    )
+  })
+
+  output$surface_ref_dt <- DT::renderDT({
+    dt <- .surface_db[, .(Target, Accessibility_score, Accessibility_tier,
+                          Surface_expression_level, Shed_or_secreted)]
+    DT::datatable(dt, options = list(pageLength = 8, dom = "ftip"), rownames = FALSE,
+      colnames = c("Target","Score","Tier","Expression","Shed/Secreted")) |>
+      DT::formatStyle("Accessibility_tier",
+        backgroundColor = DT::styleEqual(
+          c("High","Moderate","Low"),
+          c("#ccfbf1","#fef3c7","#fee2e2"))) |>
+      DT::formatStyle("Shed_or_secreted",
+        backgroundColor = DT::styleEqual(c(TRUE, FALSE), c("#fef3c7","#f8fafc")))
+  })
+
+  # ── Binding affinity scoring ─────────────────────────────────────────────────
+  ba_result <- reactiveVal(NULL)
+
+  observeEvent(input$btn_ba_score, {
+    req(!is.na(input$ba_kd_nm), input$ba_kd_nm > 0)
+    ba_result(score_binding_affinity(
+      kd_nm = input$ba_kd_nm,
+      kon   = if (is.na(input$ba_kon)) NA else input$ba_kon,
+      koff  = if (is.na(input$ba_koff)) NA else input$ba_koff
+    ))
+  })
+
+  output$ba_result_ui <- renderUI({
+    res <- ba_result(); if (is.null(res)) return(NULL)
+    tags$div(
+      tags$div(style="margin-bottom:10px;",
+        tags$span(class = paste0("badge-", res$badge_class), res$tier)
+      ),
+      tags$div(style = "font-size:28px; font-weight:800; color:#0d9488;",
+        paste0(formatC(res$kd_nm, format="g", digits=3), " nM")),
+      tags$div(style = "font-size:11px; color:#64748b; margin-bottom:6px;", "KD (equilibrium dissociation constant)"),
+      if (!is.na(res$residence_time_min))
+        tags$div(style="font-size:12px; color:#334155;",
+          icon("clock"), paste0(" Residence time: ~", res$residence_time_min, " min"))
+    )
+  })
+
+  output$ba_guidelines_ui <- renderUI({
+    res <- ba_result()
+    if (is.null(res)) {
+      return(tags$div(
+        tags$p(class = "section-header", "ADC Affinity Guidance"),
+        tags$div(class = "rationale-card",
+          tags$div(class="rationale-title", "Optimal KD range"),
+          tags$p(style="margin:0; font-size:12px;",
+            "1–10 nM KD is generally optimal for solid tumor ADCs, balancing tumor penetration and retention. ",
+            "Hematologic malignancy ADCs can use 0.1–1 nM KD with lower binding-site barrier risk because of open vascular access.")
+        ),
+        tags$div(class="rationale-card", style="margin-top:8px;",
+          tags$div(class="rationale-title", icon("triangle-exclamation"), " Binding-site barrier"),
+          tags$p(style="margin:0; font-size:12px;",
+            "Very high affinity (< 0.01 nM) can cause the ADC to saturate perivascular antigen before penetrating deeper tumor layers. ",
+            "This reduces efficacy in bulky solid tumors.")
+        )
+      ))
+    }
+    tagList(
+      tags$div(class = "rationale-card",
+        tags$div(class = "rationale-title", icon("circle-info"), " ADC Assessment"),
+        tags$p(style="margin:0; font-size:13px;", res$adc_note)
+      ),
+      tags$div(class = "rationale-card", style = "margin-top:8px;",
+        tags$div(class = "rationale-title", "Optimal range"),
+        tags$p(style="margin:0; font-size:12px;", res$optimal_range)
+      )
+    )
+  })
+
+  # ── Epitope characterization ─────────────────────────────────────────────────
+  epitope_result <- reactiveVal(NULL)
+
+  observeEvent(input$btn_epitope_char, {
+    req(nzchar(trimws(input$epitope_region %||% "")))
+    epitope_result(characterize_epitope(
+      epitope_region        = input$epitope_region,
+      epitope_type          = input$epitope_type,
+      conformation_sensitive = isTRUE(input$epitope_conformation)
+    ))
+  })
+
+  output$epitope_result_ui <- renderUI({
+    res <- epitope_result(); if (is.null(res)) return(NULL)
+    tags$div(
+      tags$span(class = "badge-good", res$epitope_type_detected)
+    )
+  })
+
+  output$epitope_detail_ui <- renderUI({
+    res <- epitope_result()
+    if (is.null(res)) {
+      return(tags$p(style="color:#94a3b8;", "Enter epitope details and click Characterize."))
+    }
+    tagList(
+      tags$div(class = "rationale-card",
+        tags$div(class = "rationale-title", icon("microscope"), " Accessibility"),
+        tags$p(style="margin:0; font-size:13px;", res$accessibility_note)
+      ),
+      tags$div(class = "rationale-card", style = "margin-top:8px;",
+        tags$div(class = "rationale-title", icon("triangle-exclamation"), " Cross-reactivity risk"),
+        tags$p(style="margin:0; font-size:13px;", res$cross_reactivity_risk)
+      ),
+      tags$div(class = "rationale-card", style = "margin-top:8px;",
+        tags$div(class = "rationale-title", icon("syringe"), " ADC relevance"),
+        tags$p(style="margin:0; font-size:13px;", res$adc_relevance)
+      )
+    )
+  })
+
+  # ── FcRn / half-life prediction ───────────────────────────────────────────────
+  hl_result <- reactiveVal(NULL)
+
+  observeEvent(input$btn_hl_predict, {
+    hl_result(predict_halflife(
+      igg_subclass      = input$hl_subclass,
+      fc_mutations      = input$hl_fc_mutations %||% character(0),
+      dar               = input$hl_dar,
+      conjugation_site  = input$hl_site
+    ))
+  })
+
+  output$hl_result_ui <- renderUI({
+    res <- hl_result(); if (is.null(res)) return(NULL)
+    badge_cls <- if (res$predicted_halflife >= 25) "excellent"
+                 else if (res$predicted_halflife >= 18) "good"
+                 else if (res$predicted_halflife >= 10) "borderline" else "poor"
+    tags$div(
+      tags$span(class = paste0("badge-", badge_cls), res$tier),
+      tags$div(style="margin-top:8px; font-size:28px; font-weight:800; color:#0d9488;",
+        paste0(res$predicted_halflife, " days")),
+      tags$div(style="font-size:11px; color:#64748b;",
+        paste0("Range: ", res$halflife_range[1], "–", res$halflife_range[2], " d"))
+    )
+  })
+
+  output$hl_detail_ui <- renderUI({
+    res <- hl_result()
+    if (is.null(res)) {
+      return(tags$p(style="color:#94a3b8;", "Set parameters and click Predict Half-Life."))
+    }
+    tagList(
+      tags$div(class = "rationale-card",
+        tags$div(class = "rationale-title", "Calculation breakdown"),
+        tags$p(style="margin:0; font-size:12px;", res$note)
+      ),
+      if (length(res$mut_effects_applied) > 0)
+        tags$div(class = "rationale-card", style = "margin-top:8px;",
+          tags$div(class = "rationale-title", icon("dna"), " Fc mutations applied"),
+          tags$p(style="margin:0; font-size:12px;",
+            paste(res$mut_effects_applied, collapse = "; "))
+        )
+    )
+  })
+
+  output$hl_bar_plot <- renderPlot({
+    res <- hl_result(); if (is.null(res)) return(invisible())
+
+    df <- data.frame(
+      Label = c("IgG1 WT baseline", res$igg_subclass,
+                if (length(res$mut_effects_applied) > 0) "With Fc mutations" else NULL,
+                "Predicted (ADC)"),
+      Value = c(21, res$base_halflife_days,
+                if (length(res$mut_effects_applied) > 0)
+                  res$base_halflife_days * res$mutation_multiplier else NULL,
+                res$predicted_halflife),
+      stringsAsFactors = FALSE
+    )
+    df$Label <- factor(df$Label, levels = rev(df$Label))
+
+    ggplot2::ggplot(df, ggplot2::aes(x = Label, y = Value)) +
+      ggplot2::geom_col(fill = c("#0d9488", rep("#334155", nrow(df)-1)),
+                        width = 0.55) +
+      ggplot2::geom_text(ggplot2::aes(label = paste0(Value, " d")),
+        hjust = -0.1, size = 3.8, color = "#334155", fontface = "bold") +
+      ggplot2::coord_flip() +
+      ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.2))) +
+      ggplot2::labs(x = NULL, y = "Half-life (days)") +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::theme(
+        panel.grid.minor  = ggplot2::element_blank(),
+        panel.grid.major.y = ggplot2::element_blank(),
+        axis.text.y = ggplot2::element_text(color = "#334155", size = 11)
+      )
+  })
+
+  # ── Bystander effect ─────────────────────────────────────────────────────────
+  bystander_result <- reactiveVal(NULL)
+
+  observeEvent(input$btn_bystander_score, {
+    req(nzchar(input$bystander_payload %||% ""))
+    bystander_result(score_bystander_effect(input$bystander_payload, payload_db_rv()))
+  })
+
+  output$bystander_score_ui <- renderUI({
+    res <- bystander_result(); if (is.null(res) || is.na(res$score)) return(NULL)
+    badge_cls <- if (res$tier == "High") "excellent"
+                 else if (res$tier == "Moderate") "borderline" else "poor"
+    tags$div(
+      tags$span(class = paste0("badge-", badge_cls), paste0(res$tier, " bystander effect")),
+      tags$div(class = "score-gauge-wrap", style = "margin-top:10px;",
+        tags$div(class = "score-gauge-track",
+          tags$div(class = "score-gauge-fill", style = paste0("width:", (res$score/8)*100, "%"))
+        ),
+        tags$span(class = "score-gauge-label", paste0(res$score, "/8"))
+      )
+    )
+  })
+
+  output$bystander_detail_ui <- renderUI({
+    res <- bystander_result()
+    if (is.null(res)) {
+      return(tags$p(style="color:#94a3b8;", "Select a payload and click Score Bystander Effect."))
+    }
+    tagList(
+      tags$div(class = "rationale-card",
+        tags$div(class = "rationale-title", icon("circle-info"), " Bystander Analysis"),
+        tags$p(style="margin:0; font-size:13px;", res$notes)
+      ),
+      tags$div(class = "rationale-card", style = "margin-top:8px;",
+        tags$div(class = "rationale-title", "Payload properties"),
+        tags$p(style="margin:0; font-size:12px;",
+          tags$b("Cell-permeable: "), if (isTRUE(res$permeable)) "Yes" else "No", tags$br(),
+          tags$b("IC50: "), paste0(res$ic50_nm, " nM")
+        )
+      )
+    )
+  })
+
+  # ── PK simulation ────────────────────────────────────────────────────────────
+  pk_result <- reactiveVal(NULL)
+
+  observeEvent(input$btn_pk_sim, {
+    req(!is.na(input$pk_halflife), !is.na(input$pk_dose))
+    pk_result(simulate_adc_pk(
+      dose_mg_kg              = input$pk_dose,
+      halflife_days           = input$pk_halflife,
+      dar                     = input$pk_dar,
+      deconjugation_halflife_days = input$pk_deconj_hl,
+      days                    = input$pk_days
+    ))
+  })
+
+  output$pk_plot <- renderPlot({
+    df <- pk_result()
+    if (is.null(df)) {
+      plot.new(); text(0.5, 0.5, "Set parameters and click Run PK Simulation",
+                       col = "#94a3b8", cex = 1.2); return(invisible())
+    }
+    df_long <- data.frame(
+      Day   = rep(df$Day, 2),
+      Conc  = c(df$Intact_ADC, df$Naked_Ab),
+      Group = rep(c("Intact ADC", "Deconjugated antibody"), each = nrow(df))
+    )
+    ggplot2::ggplot(df_long, ggplot2::aes(x = Day, y = Conc, colour = Group, linetype = Group)) +
+      ggplot2::geom_line(linewidth = 1.6) +
+      ggplot2::scale_colour_manual(values = c("Intact ADC" = "#0d9488",
+                                              "Deconjugated antibody" = "#64748b")) +
+      ggplot2::scale_linetype_manual(values = c("Intact ADC" = "solid",
+                                                "Deconjugated antibody" = "dashed")) +
+      ggplot2::labs(
+        title = paste0("PK Simulation — ", input$pk_dose, " mg/kg, DAR ", input$pk_dar),
+        x = "Days post-dose", y = "Plasma concentration (µg/mL)",
+        colour = NULL, linetype = NULL
+      ) +
+      ggplot2::theme_minimal(base_size = 13) +
+      ggplot2::theme(
+        plot.title = ggplot2::element_text(face = "bold", color = "#1e293b"),
+        legend.position = "top",
+        panel.grid.minor = ggplot2::element_blank(),
+        panel.grid.major = ggplot2::element_line(color = "#e2e8f0")
+      )
+  })
+
+  output$pk_summary_ui <- renderUI({
+    df <- pk_result(); if (is.null(df)) return(NULL)
+    auc_adc <- round(sum(diff(df$Day) * (head(df$Intact_ADC, -1) + tail(df$Intact_ADC, -1)) / 2), 1)
+    tags$div(
+      fluidRow(
+        column(6, tags$div(style="text-align:center;",
+          tags$div(style="font-size:20px; font-weight:800; color:#0d9488;",
+            paste0(round(df$Intact_ADC[1], 1), " µg/mL")),
+          tags$div(style="font-size:11px; color:#64748b;", "Peak intact ADC (C-max)")
+        )),
+        column(6, tags$div(style="text-align:center;",
+          tags$div(style="font-size:20px; font-weight:800; color:#334155;",
+            paste0(auc_adc, " µg·d/mL")),
+          tags$div(style="font-size:11px; color:#64748b;", "Intact ADC AUC")
+        ))
+      )
+    )
+  })
+
+  output$btn_download_pk <- downloadHandler(
+    filename = function() paste0("PK_simulation_", Sys.Date(), ".csv"),
+    content  = function(file) {
+      df <- pk_result()
+      if (!is.null(df)) write.csv(df, file, row.names = FALSE)
+    }
+  )
 
 } # end server
 
