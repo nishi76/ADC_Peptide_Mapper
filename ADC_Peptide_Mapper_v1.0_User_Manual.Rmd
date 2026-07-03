@@ -1,0 +1,1005 @@
+---
+title: "ADC Peptide Mapper"
+subtitle: "User Manual — Version 1.0"
+author: "Nishikant Wase, PhD"
+date: "July 2026"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    latex_engine: xelatex
+    keep_tex: false
+    highlight: null
+geometry: "margin=2.5cm"
+fontsize: 11pt
+linestretch: 1.2
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{hyperref}
+  - \hypersetup{colorlinks=true, linkcolor=black, urlcolor=black, citecolor=black}
+  - \usepackage{array}
+  - \usepackage{microtype}
+  - \usepackage{parskip}
+  - \usepackage{xcolor}
+  - \usepackage{mdframed}
+  - \usepackage{fancyhdr}
+  - \usepackage{graphicx}
+  - \setlength{\parindent}{0pt}
+  - \pagestyle{fancy}
+  - \fancyhf{}
+  - \fancyhead[L]{\small\textit{ADC Peptide Mapper v1.0 — User Manual}}
+  - \fancyhead[R]{\small\thepage}
+  - \renewcommand{\headrulewidth}{0.4pt}
+  - \definecolor{stagegrey}{HTML}{1a1a1a}
+  - \definecolor{accentblue}{HTML}{2563eb}
+  - \definecolor{lightyellow}{HTML}{fffbeb}
+  - \newmdenv[backgroundcolor=lightyellow, linecolor=accentblue, linewidth=1.5pt, leftline=true, rightline=false, topline=false, bottomline=false, innerleftmargin=10pt, innerrightmargin=6pt, innertopmargin=6pt, innerbottommargin=6pt]{notebox}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+\newpage
+
+ADC Peptide Mapper is an open-source R Shiny platform for comprehensive in-silico analysis of
+Antibody-Drug Conjugates (ADCs). Starting from raw FASTA sequences, version 1.0 extends the
+seven-tab v0.8 application into an eleven-tab integrated design platform covering sequence
+ingestion, proteolytic digest, DAR distribution modelling, targeted MRM transition export,
+heavy isotope labelling, MS/MS search confirmation, and four new computational modules:
+ADC Design (linker chemistry, payload selection, deconjugation prediction), Target Biology
+(internalization scoring, surface accessibility), Antibody Characterization (binding affinity,
+epitope mapping, FcRn / half-life prediction), and PK \& Efficacy (bystander effect modelling,
+PK simulation). An AI Assistant powered by user-supplied Anthropic, OpenAI, or Google Gemini
+API keys is available as the final tab.
+
+All prediction engines are rule-based and curated, with no external API dependencies. The
+application runs in both local R and hosted (shinyapps.io) environments without modification.
+
+---
+
+# Quick Start
+
+The following steps get the application running with the built-in Trastuzumab demo in under
+five minutes, assuming R is already installed.
+
+**Step 1.** Install R packages (one-time):
+
+```r
+install.packages(c(
+  'shiny', 'bs4Dash', 'DT', 'data.table', 'openxlsx',
+  'httr2', 'stringr', 'dplyr', 'shinycssloaders',
+  'shinyjs', 'htmltools'
+))
+install.packages('XML')
+```
+
+**Step 2.** Build background databases (one-time, \textasciitilde{}10 min, requires internet):
+
+```r
+setwd('path/to/ADC_Peptide_Mapper_v1.0')
+source('build_background_db.R')
+```
+
+**Step 3.** Launch the application:
+
+```r
+shiny::runApp('app.R')
+```
+
+**Step 4.** The demo Trastuzumab HC + LC sequence is pre-loaded. Click **Run Digest \&
+Uniqueness Check** to generate peptides, then navigate through tabs 1--6 for the
+core peptide-mapping workflow.
+
+**Step 5.** Navigate to Tab 7 (MRM Assessment) to evaluate transition signal quality,
+peak symmetry, and CV\% from an uploaded Skyline or mProphet export, and export a
+ranked final transition list.
+
+**Step 6.** Navigate to Tab 8 (ADC Design) to explore linker and payload databases and to
+model DAR decay using the deconjugation prediction engine.
+
+**Step 7.** Navigate to Tab 9 (Target Biology) to score internalization potential and surface
+accessibility for your target antigen.
+
+**Step 8.** Navigate to Tab 10 (Antibody Characterization) to evaluate binding affinity and
+predict antibody half-life including Fc engineering effects.
+
+**Step 9.** Navigate to Tab 11 (PK \& Efficacy) to score bystander effect potential and
+simulate ADC concentration-time profiles.
+
+---
+
+# What's New in v1.0
+
+The following changes were made relative to v0.8:
+
+| Feature | v0.8 | v1.0 |
+|---|---|---|
+| Tabs | 7 | 12 (+ 5 new modules: MRM Assessment + 4 ADC design modules) |
+| MRM Assessment tab | --- | Transition quality scoring, DAR-level CV summary, ranked export |
+| ADC Design tab | --- | Linker chemistry reference, payload database, deconjugation prediction |
+| Target Biology tab | --- | Internalization scoring (40+ targets), surface accessibility (27 targets) |
+| Antibody Characterization tab | --- | Binding affinity scoring, epitope classification, FcRn / half-life prediction |
+| PK \& Efficacy tab | --- | Bystander effect scorer, one-compartment PK simulation |
+| AI provider | Anthropic only | Anthropic, OpenAI (GPT), Google Gemini |
+| Visual design | Navy sidebar | High-contrast monochrome; IBM Plex Mono / Playfair Display / Inter typography |
+| Navigation | Unlabelled sidebar | Grouped sidebar: Sequence Analysis / ADC Design / Assistant |
+| Stage chip labels | --- | STAGE\_XX // MODULE\_NAME headers on all new tabs |
+| Linker database | --- | 14 linkers with stability class, cleavage mechanism, approved ADC examples |
+| Payload database | --- | 15 payloads with IC\textsubscript{50}, MOA, bystander profile, resistance genes |
+| Deconjugation model | --- | First-order DAR decay, 6 linker chemistries, 5 conjugation sites, DAR curve export |
+| Internalization DB | --- | 40 validated ADC targets, receptor class, mechanism, literature reference |
+| Surface accessibility DB | --- | 27 targets, extracellular domain count, TM segments, shedding flag |
+| FcRn half-life predictor | --- | IgG1/2/3/4, 5 Fc mutation variants, DAR penalty, conjugation site penalty |
+| Bystander scorer | --- | Cell-permeability rule + IC\textsubscript{50}-weighted composite score |
+| PK simulator | --- | Single-compartment, intact ADC + deconjugated antibody curves, AUC output |
+| Version string | v0.8 | v1.0 throughout UI, filenames, and module headers |
+
+---
+
+# Installation and Tool Acquisition
+
+## R and Shiny Packages
+
+R version 4.2 or later is required. Install from \url{https://cran.r-project.org}.
+
+```r
+install.packages(c(
+  'shiny', 'bs4Dash', 'DT', 'data.table', 'openxlsx',
+  'httr2', 'stringr', 'dplyr', 'shinycssloaders',
+  'shinyjs', 'htmltools'
+))
+
+# For mzIdentML / pepXML parsing in Tab 6:
+install.packages('XML')
+
+# Optional Bioconductor packages:
+if (!requireNamespace('BiocManager', quietly = TRUE))
+  install.packages('BiocManager')
+BiocManager::install(c('Biostrings', 'mzR'))
+```
+
+No additional packages are required for the four new v1.0 design modules. All
+prediction logic uses base R plus `data.table` and `ggplot2`, which are already
+listed above.
+
+## MS Amanda 3.0 (Primary MS/MS Search Engine)
+
+MS Amanda 3.0 is a free, standalone peptide identification engine from the Institute
+of Molecular Pathology (IMP), Vienna.
+
+Download: \url{https://github.com/hgb-bin-proteomics/MSAmanda/releases}
+
+| Platform | Binary name | Notes |
+|---|---|---|
+| Windows 10/11 (x64) | MSAmanda.exe | Standalone; no installer needed |
+| Linux (x86\_64) | MSAmanda | Requires .NET 6 runtime |
+| macOS (Intel/Apple Si) | MSAmanda | Requires .NET 6 runtime |
+
+Linux/macOS prerequisite --- .NET 6 runtime:
+
+```bash
+sudo apt-get install -y dotnet-runtime-6.0   # Ubuntu/Debian
+brew install --cask dotnet-runtime            # macOS (Homebrew)
+```
+
+## Tide / Crux 4.x (Fallback Search Engine)
+
+Download: \url{https://crux.ms/download.html}
+
+Extract and make executable, then set `CRUX_EXE` in `.Renviron` (see Section 8.5).
+
+## ProteoWizard MSConvert (Raw File Conversion)
+
+Download: \url{https://proteowizard.sourceforge.io}
+
+Recommended conversion command:
+
+```bash
+msconvert input.raw --mzML --filter "peakPicking true 1-"
+```
+
+## AI Assistant API Keys
+
+The AI Assistant (Tab 11) supports three providers. Obtain a key from the relevant
+console and enter it in the AI Assistant tab:
+
+| Provider | Key prefix | Console URL |
+|---|---|---|
+| Anthropic (Claude) | sk-ant- | \url{https://console.anthropic.com} |
+| OpenAI (GPT) | sk- | \url{https://platform.openai.com/api-keys} |
+| Google Gemini | AIza | \url{https://aistudio.google.com/app/apikey} |
+
+Keys can be saved permanently to `~/.Renviron` using the **Save to .Renviron** button.
+When deploying to shinyapps.io, set keys as environment variables in the app settings
+dashboard (never hard-code in source files).
+
+## Background Proteome Database
+
+Build the background uniqueness databases once before first use:
+
+```r
+source('build_background_db.R')
+```
+
+This downloads Human, Cynomolgus Monkey, and Rat Swiss-Prot proteomes from UniProt
+(\textasciitilde{}10 min, internet required). Background files from a previous v0.8
+installation can be copied directly to the v1.0 `data/` folder without rebuilding.
+
+## Component Summary
+
+| Component | Required for | Source | Free? |
+|---|---|---|---|
+| R >= 4.2 | App runtime | cran.r-project.org | Yes |
+| R packages | App runtime | CRAN / Bioconductor | Yes |
+| MS Amanda 3.0 | Tab 6 (primary search) | github.com/hgb-bin-proteomics/MSAmanda | Yes |
+| .NET 6 runtime | MS Amanda on Linux/Mac | dotnet.microsoft.com/download/dotnet/6.0 | Yes |
+| Crux 4.x (Tide) | Tab 6 (fallback) | crux.ms/download.html | Yes |
+| MSConvert | Raw file conversion | proteowizard.sourceforge.io | Yes |
+| API key (one provider) | Tab 11 AI Assistant | See table above | Free tier available |
+| Internet (once) | Background DB build | --- | --- |
+
+---
+
+# Application Overview
+
+ADC Peptide Mapper v1.0 is an eleven-tab R Shiny application. Tabs 1--6 cover the
+core peptide-mapping workflow (unchanged from v0.8). Tabs 8--11 are the new ADC design
+modules introduced in v1.0. Tab 11 is the AI Assistant.
+
+| Tab | Stage | Name | Purpose |
+|---|---|---|---|
+| 1 | STAGE\_01 | Input and Setup | Upload ADC FASTA, select enzyme, run digest |
+| 2 | STAGE\_02 | Modifications | PTMs, DAR settings, linker biotransformations |
+| 3 | STAGE\_03 | Peptide Results | Browse peptide table, sequence coverage map |
+| 4 | STAGE\_04 | Transition List | Generate instrument-specific MRM/DIA transition lists |
+| 5 | STAGE\_05 | Heavy Labelling | SIL-IS internal standard light/heavy pairs |
+| 6 | STAGE\_06 | MS/MS Search | MS Amanda / Tide-Crux local search and PSM cross-reference |
+| 7 | STAGE\_07 | MRM Assessment | Transition quality scoring, DAR CV summary, ranked export |
+| 8 | STAGE\_08 | ADC Design | Linker chemistry, payload database, deconjugation prediction |
+| 9 | STAGE\_09 | Target Biology | Internalization scoring, surface accessibility |
+| 10 | STAGE\_10 | Antibody Characterization | Binding affinity, epitope mapping, FcRn / half-life |
+| 11 | STAGE\_11 | PK \& Efficacy | Bystander effect, ADC PK simulation |
+| AI | --- | AI Assistant | Multi-provider LLM chat with ADC context injection |
+
+\begin{notebox}
+\textbf{Navigation note:} Tabs 8--11 in the sidebar are grouped under the
+\textsc{ADC Design} section header and can be used independently of the peptide-mapping
+workflow (Tabs 1--6). No digest is required to access the design modules.
+\end{notebox}
+
+---
+
+# Tabs 1--6 (Core Workflow — Unchanged from v0.8)
+
+The core peptide-mapping workflow in Tabs 1--6 is functionally identical to v0.8.
+Complete documentation for these tabs is provided in the v0.8 User Manual, which
+remains valid. A brief summary is provided below for reference.
+
+## Tab 1 --- Input and Setup
+
+Upload ADC FASTA sequences (file upload or paste), set the ADC name, select the
+proteolytic enzyme (trypsin, Lys-C, Asp-N, Glu-C, Arg-C, chymotrypsin, and dual-enzyme
+combinations), set missed cleavages (0--2), and choose the background proteome
+(Human, Cynomolgus Monkey, Rat, or custom FASTA). Click **Run Digest \& Uniqueness Check**
+to execute the pipeline.
+
+## Tab 2 --- Modifications
+
+Configure fixed modifications (carbamidomethylation always applied), variable modifications
+(oxidation, propionamide, NEM, drug-linker payload), linker biotransformation modifications
+(maleimide ring hydrolysis, succinimide ring-opening, thioether oxidation, disulfide loss,
+deamidation), special PTMs (deamidation, pyroglutamate, phosphorylation, acetylation),
+custom modification builder, and DAR distribution settings (chemistry type, maximum DAR level).
+
+## Tab 3 --- Peptide Results
+
+Browse the full peptide table with per-column filtering; download Excel summary; view and
+download the sequence coverage map (colour by uniqueness, missed cleavages, or peptide length;
+greedy lane-assignment algorithm); cross-species co-uniqueness check.
+
+## Tab 4 --- Transition List
+
+Select instrument platform (Skyline, Thermo, SCIEX, Bruker timsTOF, Agilent, Waters) and
+DAR levels; generate b/y fragment ion series; download instrument-specific CSV, Skyline CSV,
+or multi-sheet Excel workbook with averagine isotope envelope data.
+
+## Tab 5 --- Heavy Labelling
+
+Select stable isotope label preset (13C6 15N2 Lys, 13C6 15N4 Arg, D4 Lys, D6 Leu,
+13C6 Leu, 13C9 15N1 Tyr, or custom); select charge states; download light/heavy pair
+tables as CSV or Excel.
+
+## Tab 6 --- MS/MS Search
+
+Run MS Amanda 3.0 (primary) or Tide/Crux (fallback) locally; auto-detect engines;
+upload mzML/MGF/mzXML or pre-computed mzIdentML/pepXML/psm.tsv results; apply score
+filters; view sequence coverage, detected vs.\ theoretical, and modification summary sub-tabs;
+target-decoy FDR estimation; download filtered PSM table and coverage summary.
+
+---
+
+# Tab 7 --- MRM Assessment (new in v1.0)
+
+Tab 7 evaluates the chromatographic quality of MRM transitions using peak data exported
+from Skyline or mProphet after a targeted acquisition experiment. It closes the loop
+between the transition list generated in Tab 4 and the experimental data, enabling
+go/no-go decisions on individual transitions before transferring a method to routine
+use or a CRO.
+
+## Upload formats
+
+The tab accepts the following file types (CSV, TSV, or TXT):
+
+| Format | Required columns | Notes |
+|---|---|---|
+| Skyline peak-area report | Peptide, Area (or Intensity), RT | Export via File \textgreater{} Export \textgreater{} Report in Skyline |
+| mProphet output | Peptide, Transition, Area, RT, d\_score | mProphet 2.0+ format |
+| Custom TSV | Peptide, Area (minimum) | Flexible column matching by keyword |
+
+Column names are matched case-insensitively. If a replicate column is detected (headers
+containing ``replicate'', ``sample'', or ``file''), inter-replicate CV\% is computed
+automatically. Without a replicate column, CV\% is reported as NA.
+
+## Quality thresholds
+
+Three thresholds govern the pass/fail assessment:
+
+| Parameter | Default | Description |
+|---|---|---|
+| Min S/N ratio | 10 | Signal-to-noise; estimated from area relative to baseline |
+| Max CV\% | 20\% | Inter-replicate area coefficient of variation |
+| Min symmetry | 0.70 | Peak symmetry score derived from FWHM if available (0--1) |
+
+A transition is labelled **PASS** only if all three criteria are met. Transitions with
+missing data (e.g.\ no FWHM for symmetry) are assessed on available criteria only.
+
+## Sub-tabs
+
+**All Transitions:** complete quality table with per-transition S/N, CV\%, symmetry,
+and colour-coded PASS / FAIL status. Filterable and downloadable.
+
+**DAR-Level Summary:** mean area, mean CV\%, and pass rate grouped by DAR level (DAR0--
+DAR8). Requires DAR annotation either as a dedicated column or embedded in the peptide
+name (e.g.\ \texttt{TCPPCPAPELLGGPSVFLFPPK\_DAR4}).
+
+**Peak Plots:** bar chart of top 20 transitions by mean area, and a histogram of the
+CV\% distribution with the threshold overlaid.
+
+**Ranked Export:** transitions ranked by the selected criterion (area, S/N, CV\%, or
+symmetry), truncated to the top N per peptide. Download as CSV or Skyline-compatible
+CSV for direct import into a final Skyline document or instrument method.
+
+## Transition ranking
+
+Select a ranking criterion from the left panel:
+
+- **Area (highest signal first):** maximises sensitivity in the final method.
+- **S/N ratio:** prioritises transitions with the cleanest signal above chemical noise.
+- **CV\% (most reproducible first):** selects transitions with the lowest inter-replicate
+  variability; recommended for absolute quantification workflows.
+- **Peak symmetry:** removes co-eluting or fronting/tailing transitions.
+
+The ``Keep top N per peptide'' control retains the N highest-ranked transitions per
+unique peptide sequence before exporting. Default is 3 (matches typical MRM selectivity
+rules: 1 quantifier + 2 qualifiers).
+
+---
+
+# Tab 8 --- ADC Design (new in v1.0)
+
+Tab 8 is a three-sub-tab ADC Design Suite. It provides curated reference data and
+predictive tools for the chemical design phase of ADC development.
+
+## Sub-tab A: Linker Chemistry Reference
+
+A searchable, filterable table of 14 clinically-relevant and experimental ADC linkers.
+
+| Column | Description |
+|---|---|
+| Linker | Common name (e.g.\ MC-VC-PABC, SMCC, CL2A) |
+| Type | Cleavable or Non-cleavable |
+| Chemistry | Bond formed and cleavage chemistry |
+| Cleavage trigger | Lysosomal protease, pH, reducing agent, or none |
+| t\textsubscript{1/2} plasma | Approximate plasma half-life (days) |
+| Stability rank | A+ (exceptional) through D (poor) |
+| Approved ADCs | Representative approved ADCs using this linker |
+
+The table is colour-coded by stability rank (A+ = teal, A = green, B = amber,
+C--D = red) for rapid visual assessment.
+
+**Linker stability interpretation:**
+
+\begin{notebox}
+Stability rank A+ (thioether SMCC, NHS-ester, bioorthogonal) indicates
+half-lives \textgreater 30 days. Rank C (disulfide) and D (hydrazone) indicate half-lives
+of 1--3 days and \textless 1 day respectively, and are generally not recommended for
+systemic ADC applications unless the payload is extremely potent and the target is
+exclusively intracellular.
+\end{notebox}
+
+## Sub-tab B: Payload Selection
+
+A searchable table of 15 cytotoxic payloads with the following columns:
+
+| Column | Description |
+|---|---|
+| Name | Payload name (e.g.\ MMAE, DM1, DXd, SN-38, Calicheamicin) |
+| Class | Chemical class (auristatin, maytansinoid, camptothecin, etc.) |
+| MOA | Mechanism of action |
+| IC\textsubscript{50} (nM) | Approximate in-vitro cytotoxic potency |
+| Optimal DAR | DAR range recommended for this payload |
+| Bystander+ | TRUE if cell-permeable (supports bystander killing) |
+| Approved ADCs | Approved drugs using this payload |
+
+**Payload comparison panel:** Select two payloads from the dropdown and click
+**Compare** to display side-by-side chips with IC\textsubscript{50}, class, MOA, and
+bystander profile.
+
+**Selecting a payload for your ADC:**
+
+\begin{notebox}
+For antigen-heterogeneous solid tumors, choose a cell-permeable payload (MMAE, DXd,
+SN-38) to enable bystander killing of antigen-negative cells.
+For hematologic malignancies with uniform antigen expression, non-permeable payloads
+(DM1, DM4, MMAF) are acceptable and may offer better selectivity.
+Payloads with IC\textsubscript{50} \textless 0.01 nM (calicheamicin, PBD dimer)
+carry a narrow therapeutic window and are best reserved for targets with very high
+antigen density and fast internalization.
+\end{notebox}
+
+## Sub-tab C: Deconjugation Prediction
+
+A first-order kinetic model of DAR loss in plasma based on linker chemistry and
+conjugation site. This tool simulates drug deconjugation without requiring mass
+spectrometry data.
+
+### Inputs
+
+| Parameter | Options |
+|---|---|
+| Linker chemistry | Maleimide-thiol (MC-VC-PABC / SMCC); Disulfide (SPDB / Sulfo-SPDB); Acid-labile hydrazone (CL2A); Oxime; NHS ester / Lysine; Enzymatic / site-specific |
+| Conjugation site | Cys-engineered; Lys (NHS ester / non-specific); Fab-Cys; Fc-glycan; N-term |
+| Initial DAR | 1--8 |
+| Simulation period | 7--42 days |
+
+### DAR decay model
+
+The model applies first-order kinetics:
+
+$$\text{DAR}(t) = \text{DAR}_0 \times e^{-k_e t}$$
+
+where $k_e = \ln(2) / t_{1/2}$ and $t_{1/2}$ is the effective plasma half-life for the
+selected chemistry--site combination. Chemistry-specific half-lives:
+
+| Chemistry | Half-life (days) | Stability class |
+|---|---|---|
+| Maleimide-thiol (MC-VC-PABC / SMCC) | 5.5 | A |
+| Disulfide (SPDB / Sulfo-SPDB) | 1.5 | C |
+| Acid-labile hydrazone (CL2A) | 0.6 | D |
+| Oxime (aminooxy) | 21 | A |
+| NHS ester / Lysine (SMCC) | 30 | A+ |
+| Enzymatic / site-specific | 30 | A+ |
+
+### Outputs
+
+- **DAR decay curve:** ggplot2 line chart showing DAR over time; amber shaded region
+  below 35\% of initial DAR (sub-therapeutic zone); dashed horizontal line at threshold.
+- **Summary metrics:** days above therapeutic DAR, plasma half-life, therapeutic DAR threshold.
+- **Stability badge:** A+ through D with human-readable descriptor.
+- **Warning note:** chemistry-specific cautions (e.g.\ retro-Michael risk for maleimide,
+  plasma reduction risk for disulfide).
+- **Download:** DAR table as CSV (Day, DAR columns).
+
+---
+
+# Tab 9 --- Target Biology (new in v1.0)
+
+Tab 9 provides two assessments of the biological behaviour of the target antigen at the
+cell surface, which are critical determinants of ADC efficacy.
+
+## Sub-tab A: Internalization Scoring
+
+### Background
+
+ADC payload delivery requires that the antigen--antibody complex be internalized
+into the target cell after binding, trafficked to lysosomes, and retained long enough
+for the linker to release the cytotoxic payload. Antigens with high constitutive or
+ligand-induced internalization rates are strongly preferred for ADC targeting.
+
+### Curated database
+
+The scoring database covers 40 validated ADC targets with individually curated entries:
+
+| Field | Description |
+|---|---|
+| Target | Gene name (e.g.\ HER2, EGFR, CD22, Trop2) |
+| Score | 1--10 (10 = fastest internalization) |
+| Tier | High ($\geq$ 7), Moderate (4--6), Low ($<$ 4) |
+| Receptor class | RTK, B-cell antigen, TNFR superfamily, GPI-anchored, etc. |
+| Mechanism | Endocytic pathway (clathrin, caveolae, arrestin-mediated) and ligand dependence |
+| Literature | Primary reference(s) with year |
+
+### Usage
+
+Enter the target gene name (e.g.\ \texttt{HER2}, \texttt{CD22}, \texttt{Trop2}) and click
+**Score Internalization**. Partial matching is supported (e.g.\ \texttt{HER} returns
+HER2 if HER3 is not found first). If the target is not in the curated database, a
+``not found'' message is returned with a prompt to consult internalization assay literature.
+
+### Output
+
+- Tier badge (High / Moderate / Low) and score gauge bar (1--10).
+- Receptor class, internalization mechanism, and literature note.
+- Full reference table of all 40 curated targets.
+
+### Selected internalization scores
+
+| Target | Score | Tier | Key mechanism |
+|---|---|---|---|
+| HER2 | 9 | High | Clathrin; constitutive |
+| EGFR | 8 | High | Clathrin; ligand-induced |
+| CD22 | 9 | High | Constitutive; t\textsubscript{1/2} \textasciitilde{}10 min |
+| Trop2 | 8 | High | Constitutive clathrin-mediated |
+| BCMA | 7 | High | APRIL/BAFF-induced; constitutive low-level |
+| HER3 | 6 | Moderate | Recycling predominates |
+| MSLN | 5 | Moderate | GPI-anchored; slow endocytosis |
+| GD2 | 4 | Low | Ganglioside; minimal TM machinery |
+
+## Sub-tab B: Surface Accessibility
+
+### Background
+
+Cell-surface accessibility reflects the probability that an intravenously administered
+antibody can reach and engage its target epitope. Factors include extracellular domain
+architecture, transmembrane topology, surface expression level, and whether the antigen
+sheds a soluble form that can act as a decoy.
+
+### Curated database
+
+27 ADC targets are covered with:
+
+| Field | Description |
+|---|---|
+| Accessibility score | 0--100 |
+| Tier | High ($\geq$ 65), Moderate (50--64), Low ($<$ 50) |
+| Extracellular domains | Number of structured ECD domains |
+| TM segments | Transmembrane segment count |
+| Expression level | High / Moderate / Low on target tumor |
+| Shed / secreted | Flag for soluble decoy form |
+
+### Shedding warning
+
+If the target has a known shed or secreted form, a warning note is displayed:
+
+\begin{notebox}
+Circulating antigen may act as a decoy sink, reducing effective ADC binding at the tumor
+surface. Consider measuring serum antigen levels in the intended patient population and
+selecting a non-shed epitope or combining with a shed-blocking strategy where possible.
+Examples: BCMA (shed by ADAM10/17), MUC16 (CA-125), TAG-72.
+\end{notebox}
+
+---
+
+# Tab 10 --- Antibody Characterization (new in v1.0)
+
+Tab 10 provides three biochemical assessment tools for the antibody component of the ADC.
+
+## Sub-tab A: Binding Affinity Scoring
+
+### Inputs
+
+| Parameter | Description |
+|---|---|
+| KD (nM) | Equilibrium dissociation constant |
+| kon (M\textsuperscript{-1}s\textsuperscript{-1}) | Optional association rate constant |
+| koff (s\textsuperscript{-1}) | Optional dissociation rate constant |
+
+### Scoring
+
+KD is classified into four tiers:
+
+| KD (nM) | Tier | ADC suitability |
+|---|---|---|
+| $< 0.01$ | Exceptional (picomolar) | Binding-site barrier risk in solid tumors |
+| 0.01--1 | Excellent | Optimal for hematologic malignancy ADCs |
+| 1--10 | Good | Optimal for solid tumor ADCs |
+| 10--100 | Borderline | Adequate for high-antigen-density targets |
+| $> 100$ | Poor | Affinity maturation recommended |
+
+**Binding-site barrier:** Antibodies with KD $< 0.01$ nM can saturate perivascular
+antigen before penetrating deeper tumor layers, reducing efficacy in bulky solid tumors.
+The scorer flags this risk automatically.
+
+### Residence time
+
+If kon is provided, the mean residence time $\tau = 1 / k_{\text{off}} / 60$ (minutes)
+is calculated and displayed. A longer residence time generally supports more complete
+lysosomal payload delivery.
+
+## Sub-tab B: Epitope Characterization
+
+### Inputs
+
+Provide a description of the epitope region (e.g.\ "Domain IV of HER2 ECD"), select the
+epitope type (Linear / Conformational / Glycan-dependent), and indicate whether binding
+is conformation-sensitive.
+
+### Outputs
+
+| Output | Description |
+|---|---|
+| Epitope type | Linear, Conformational, or Glycan-dependent |
+| Accessibility note | Assay implications; denaturation sensitivity |
+| Cross-reactivity risk | Probability of binding sequence homologs |
+| ADC relevance | Epitope stability under lysosomal trafficking |
+
+## Sub-tab C: FcRn / Half-Life Prediction
+
+### Background
+
+Neonatal Fc receptor (FcRn) binding at pH 6.0 in endosomes rescues IgG from lysosomal
+degradation and recycles it to the cell surface, extending serum half-life. Fc engineering
+mutations increase FcRn affinity and prolong half-life. ADC payload conjugation reduces
+half-life due to increased hydrophobicity and accelerated clearance.
+
+### Inputs
+
+| Parameter | Options |
+|---|---|
+| IgG subclass | IgG1, IgG2, IgG3, IgG4 |
+| Fc mutations | YTE (M252Y/S254T/T256E); LS (M428L/N434S); M428L/N434S; GASDALIE; N434H; none |
+| DAR | 1--8 |
+| Conjugation site | Cys-engineered; Lys (NHS ester); Fab-Cys; Fc-glycan; N-term |
+
+### Prediction model
+
+$$t_{1/2,\text{predicted}} = t_{1/2,\text{base}} \times \prod_i f_i \times (1 - p_{\text{DAR}} - p_{\text{site}})$$
+
+where $f_i$ is the fold-change for each Fc mutation, $p_{\text{DAR}}$ is the DAR-dependent
+clearance penalty (5\%--35\%), and $p_{\text{site}}$ is the conjugation-site penalty (0--10\%).
+
+**Fc mutation effects used in model:**
+
+| Mutation | Fold change | Mechanism |
+|---|---|---|
+| YTE (M252Y/S254T/T256E) | 1.50 | Increased FcRn pH 6.0 affinity; faster recycling |
+| LS (M428L/N434S) | 1.30 | FcRn affinity enhancement |
+| M428L/N434S | 1.50 | Same residue pair as LS; equivalent effect |
+| GASDALIE | 0.67 | Enhanced FcγRIII for ADCC; slightly faster clearance |
+| N434H | 1.30 | Moderate FcRn improvement |
+
+**IgG subclass baselines:** IgG1 = 21 d; IgG2 = 20 d; IgG3 = 7 d; IgG4 = 21 d.
+
+### Outputs
+
+- Predicted half-life (days) with 85--115\% uncertainty range.
+- Half-life tier badge (Excellent $\geq 25$ d / Good 18--25 d / Moderate 10--18 d / Short $< 10$ d).
+- Calculation breakdown with base value, mutation multiplier, DAR penalty, site penalty.
+- Bar chart comparing IgG1 wild-type baseline, subclass baseline, post-mutation, and
+  final predicted ADC half-life.
+
+---
+
+# Tab 11 --- PK \& Efficacy (new in v1.0)
+
+Tab 11 provides two pharmacology tools for understanding ADC systemic behaviour.
+
+## Sub-tab A: Bystander Effect Scorer
+
+### Background
+
+Bystander killing refers to the ability of a cell-permeable payload, released from an
+antigen-positive cell, to diffuse into and kill adjacent antigen-negative cells.
+This is therapeutically important in antigen-heterogeneous tumors where not every
+tumor cell expresses the target antigen at sufficient density for direct ADC binding.
+
+### Scoring
+
+The bystander score is a composite 0--8 scale:
+
+| Component | Weight | Criterion |
+|---|---|---|
+| Cell permeability | +5 | Payload is cell-permeable (True / False) |
+| Potency contribution | +3 / +1 / +0 | IC\textsubscript{50} $< 1$ nM / 1--10 nM / $> 10$ nM |
+
+Scores 7--8 = High bystander; 4--6 = Moderate; 0--3 = Low.
+
+**Clinical implication:** Payloads with High bystander score (MMAE, DXd, SN-38) are
+preferred for solid tumor ADCs where antigen heterogeneity is expected. Low-bystander
+payloads (DM1, DM4, MMAF, calicheamicin) require high uniform antigen density.
+
+## Sub-tab B: PK Simulation
+
+### Model
+
+A one-compartment open pharmacokinetic model is applied:
+
+$$C_{\text{intact}}(t) = C_0 \cdot e^{-k_e t}$$
+
+$$C_{\text{naked}}(t) = C_0 \cdot \frac{k_{\text{deconj}}}{k_{\text{deconj}} - k_e} \cdot \left( e^{-k_e t} - e^{-k_{\text{deconj}} t} \right)$$
+
+where $k_e = \ln(2) / t_{1/2,\text{ADC}}$ and $k_{\text{deconj}} = \ln(2) / t_{1/2,\text{deconj}}$.
+$C_0$ is estimated from dose and a fixed distribution volume of $V_d = 3.5$ L/kg
+(standard IgG assumption).
+
+### Inputs
+
+| Parameter | Description |
+|---|---|
+| Dose (mg/kg) | Administered dose |
+| Antibody half-life (days) | From FcRn predictor (Tab 10) or literature |
+| DAR | Drug-to-antibody ratio |
+| Deconjugation t\textsubscript{1/2} (days) | From deconjugation predictor (Tab 8) |
+| Simulation period (days) | 7--42 |
+
+### Outputs
+
+- Dual-curve concentration-time plot: teal solid line (intact ADC), grey dashed line
+  (deconjugated / naked antibody).
+- Peak concentration (C\textsubscript{max}) of intact ADC.
+- Area under the curve (AUC) of intact ADC over the simulation period
+  (trapezoidal rule, $\mu$g$\cdot$d/mL).
+- Downloadable PK table as CSV.
+
+\begin{notebox}
+\textbf{Interpretation note:} This is a simplified single-compartment model for
+rapid design-stage estimation. It does not account for two-compartment distribution,
+receptor-mediated clearance, target-mediated drug disposition (TMDD), or inter-individual
+variability. For regulatory submissions, full population PK modelling is required.
+\end{notebox}
+
+---
+
+# Tab 12 --- AI Assistant
+
+The AI Assistant provides a conversational interface to three LLM providers, pre-configured
+with ADC peptide mapping and drug design context.
+
+## Provider Selection
+
+Three providers are supported:
+
+| Provider | Model examples | Key type |
+|---|---|---|
+| Anthropic (Claude) | claude-opus-4, claude-sonnet-5 | sk-ant- |
+| OpenAI (GPT) | gpt-4o, gpt-4-turbo | sk- |
+| Google Gemini | gemini-1.5-pro, gemini-2.0-flash | AIza |
+
+The available model list is populated dynamically from the selected provider's API.
+
+## Rate Limiting
+
+When no server-side key is set (shinyapps.io public deployment), a session limit of 10
+messages is enforced. The usage counter is displayed with colour-coded status
+(green: $\geq 4$ messages remaining; amber: 1--3 remaining; red: limit reached).
+Providing your own API key removes the session limit.
+
+## Context Injection
+
+Enable **Include digest context** to automatically append the current ADC name, chain
+count, enzyme, missed cleavage setting, and peptide count to each message. This
+allows the model to give experiment-specific advice without manual copy-paste.
+
+## Example questions for ADC design guidance
+
+- *"Which of my linker options would give the best plasma stability for a HER2-targeting ADC?"*
+- *"My deconjugation model shows DAR dropping below 1.4 by day 7 --- what linker change would extend this?"*
+- *"For a target with internalization score of 6, would a PBD dimer or MMAE be more appropriate?"*
+- *"My FcRn predictor gives 12 days half-life. What Fc mutation would get me to 20+ days?"*
+- *"Explain why MMAF is preferred over MMAE when bystander killing is not desired."*
+
+---
+
+# Output Reference
+
+## Deconjugation CSV Export
+
+| Column | Description |
+|---|---|
+| Day | Time point (0 to simulation end, 0.5-day steps) |
+| DAR | Mean DAR remaining at that time point (floor at 0) |
+
+## PK Simulation CSV Export
+
+| Column | Description |
+|---|---|
+| Day | Time point (0 to simulation end, 0.25-day steps) |
+| Intact\_ADC | Plasma concentration of intact ADC ($\mu$g/mL) |
+| Naked\_Ab | Plasma concentration of deconjugated antibody ($\mu$g/mL) |
+
+## Peptide and Transition Table Columns
+
+See Section 7 of the v0.8 User Manual for full column definitions. These tables are
+unchanged in v1.0.
+
+---
+
+# Deployment to shinyapps.io
+
+The v1.0 application, including all four new ADC design modules, deploys to shinyapps.io
+without modification. All prediction logic is pure R with no binary dependencies.
+
+```r
+install.packages('rsconnect')
+rsconnect::setAccountInfo(
+  name   = 'your-account-name',
+  token  = 'YOUR_TOKEN',
+  secret = 'YOUR_SECRET'
+)
+source('deploy.R')
+```
+
+After deploying, set environment variables in the shinyapps.io dashboard:
+
+```
+ANTHROPIC_API_KEY = sk-ant-...   # optional
+OPENAI_API_KEY    = sk-...       # optional
+GEMINI_API_KEY    = AIza...      # optional
+```
+
+At least one key must be set server-side to remove the 10-message session limit for
+public users.
+
+---
+
+# Running Unit Tests and Mass Accuracy Benchmark
+
+Unit tests and mass accuracy benchmarks are unchanged from v0.8:
+
+```r
+setwd('path/to/ADC_Peptide_Mapper_v1.0')
+source('R/digest.R')
+source('R/modifications.R')
+source('R/transitions.R')
+source('R/isotopes.R')
+source('R/dar.R')
+source('tests/test_masses.R')              # 79 tests
+source('tests/benchmark_mass_accuracy.R') # 10 reference peptides
+```
+
+Expected output: `79 / 79 PASSED` and `10 / 10 PASSED`.
+
+No new formal unit tests are included for the v1.0 design modules in this release,
+as all four modules use curated lookup tables and deterministic rule-based functions
+that are verified by inspection. A test suite for these modules is planned for v1.1.
+
+---
+
+# Scientific Background
+
+## Mass Calculation and Fragment Ions
+
+Unchanged from v0.8. All masses are monoisotopic. Peptide mass:
+
+$$M_{\text{neutral}} = \sum_{i} m_{r_i} + 18.010565 + \sum_{j} \Delta m_j$$
+
+Precursor m/z: $m/z = (M_{\text{neutral}} + z \times 1.007276) / z$.
+
+b-ions: N-terminal fragments (b2 through b$(n-1)$); y-ions: C-terminal fragments
++ H\textsubscript{2}O (y2 through y$(n-1)$). All product ions singly charged.
+
+## Deconjugation Model
+
+First-order decay with chemistry-specific rate constant:
+
+$$k_e = \frac{\ln 2}{t_{1/2}}$$
+
+The sub-therapeutic DAR threshold is set at 35\% of the initial DAR, reflecting the
+approximate point below which in-vivo efficacy is substantially reduced for most
+auristatin- and maytansinoid-based ADCs (Shen 2012; Lyon 2015).
+
+## FcRn Half-Life Prediction
+
+The model uses published Fc mutation fold-change data from Dall'Acqua et al.\ (2006)
+for YTE, from Zalevsky et al.\ (2010) and Shields et al.\ (2001) for LS/M428L--N434S,
+and from Lazar et al.\ (2006) for GASDALIE. DAR and conjugation-site penalties are
+derived from published ADC PK data (Hamblett et al.\ 2004; Shen et al.\ 2012).
+
+## Internalization Database
+
+Target internalization scores are curated from peer-reviewed ADC preclinical and clinical
+data. Receptor class assignments follow GO Cellular Component and UniProt topology
+annotations. Scores reflect the rate and completeness of endosomal trafficking, not surface
+expression level.
+
+## Bystander Scoring
+
+Cell permeability classification is derived from published ADC bystander studies
+(Li et al.\ 2016; Ogitani et al.\ 2016; Staudacher \& Hartley 2018). IC\textsubscript{50}
+values are in-vitro cytotoxicity data from published sources; they represent free payload
+potency, not ADC-level potency.
+
+---
+
+# Troubleshooting
+
+## App does not launch
+
+- Confirm all required packages are installed (`shiny`, `bs4Dash`, `DT`, `data.table`,
+  `openxlsx`, `httr2`, `stringr`, `dplyr`, `shinyjs`, `htmltools`).
+- Check that `data/bg_human.rds` exists; run `source('build_background_db.R')` if not.
+
+## New design modules show no output
+
+- The deconjugation predictor, internalization scorer, surface accessibility assessor,
+  binding affinity scorer, epitope characterizer, half-life predictor, bystander scorer,
+  and PK simulator all require clicking the respective action button after setting inputs.
+  No output appears until the button is clicked.
+- The payload comparison panel requires selecting two payload names from the dropdowns
+  before clicking **Compare**.
+
+## Target not found in internalization or surface database
+
+- The databases cover 40 (internalization) and 27 (surface) targets. Partial matching is
+  applied (e.g.\ entering ``HER'' matches the first result containing that substring).
+- For targets not in the database, consult internalization assay literature and enter a
+  KD-based affinity score manually in Tab 10.
+
+## AI Assistant returns API error
+
+- Verify the API key prefix matches the selected provider (sk-ant- for Anthropic,
+  sk- for OpenAI, AIza for Gemini).
+- Confirm internet access: `httr2::request('https://api.anthropic.com') |> httr2::req_perform()`
+- If the model dropdown is empty, the key may be invalid or the provider API is temporarily
+  unavailable.
+
+## MS Amanda not detected (Tab 6)
+
+- See the v0.8 User Manual Section 8 for detailed platform-specific instructions.
+- Set `MSAMANDA_EXE` in `~/.Renviron` and restart R.
+
+## shinyapps.io deployment bundle too large
+
+- Edit `INCLUDE_SPECIES` in `deploy.R` to exclude background species not required.
+- Exclude `tests/` and large local files via `EXCLUDE_PATTERNS` in `deploy.R`.
+
+---
+
+# Citation
+
+If you use ADC Peptide Mapper v1.0 in your research, please cite:
+
+> Wase, N. (2026). \textit{ADC Peptide Mapper} (Version 1.0) [Software].
+> \url{https://doi.org/10.5281/zenodo.20681412}
+
+If using Tab 6 with MS Amanda, also cite:
+
+> Dorfer V, Pichler P, Stranzl T, Stadlmann J, Taus T, Winkler S, Mechtler K.
+> MS Amanda, a Universal Identification Algorithm Optimized for High Accuracy
+> Tandem Mass Spectra. \textit{J Proteome Res.} 2014;13(8):3679--3684.
+
+If using the FcRn / half-life predictor (Tab 10):
+
+> Dall'Acqua WF et al. Increasing the affinity of a human IgG1 for the neonatal Fc receptor.
+> \textit{J Immunol.} 2002;169(9):5171--5180.
+
+> Zalevsky J et al. Enhanced antibody half-life improves in vivo activity.
+> \textit{Nat Biotechnol.} 2010;28(2):157--159.
+
+If using the deconjugation predictor (Tab 8):
+
+> Shen BQ et al. Conjugation site modulates the in vivo stability and therapeutic activity
+> of antibody-drug conjugates. \textit{Nat Biotechnol.} 2012;30(2):184--189.
+
+> Lyon RP et al. Reducing hydrophobicity of homogeneous antibody-drug conjugates improves
+> pharmacokinetics and therapeutic index. \textit{Nat Biotechnol.} 2015;33(7):733--735.
+
+For the full reference list, see `CITATION.cff` in the project root.
+
+---
+
+\vspace{1em}
+
+**Author:** Nishikant Wase, PhD ---
+\href{mailto:nishikant.wase@gmail.com}{nishikant.wase@gmail.com}
+
+**Portfolio / source:** \url{https://nishi76.github.io} |
+\url{https://github.com/nishi76/ADC_Peptide_Mapper}
+
+\vspace{0.5em}
+\small\textit{For research use only. All masses are monoisotopic. Prediction models are
+rule-based and curated; they do not substitute for experimental characterization.
+Background proteomes sourced from UniProt Swiss-Prot (Human, Cynomolgus Monkey, Rat).}

@@ -195,6 +195,7 @@ ui <- bs4DashPage(
       bs4SidebarMenuItem("Transition List",  tabName = "tab_trans",   icon = icon("list")),
       bs4SidebarMenuItem("Heavy Labelling",  tabName = "tab_heavy",   icon = icon("weight-hanging")),
       bs4SidebarMenuItem("MS/MS Search",     tabName = "tab_search",  icon = icon("magnifying-glass")),
+      bs4SidebarMenuItem("MRM Assessment",   tabName = "tab_mrm",     icon = icon("chart-area")),
       tags$span(class = "nav-group-label", "ADC Design"),
       bs4SidebarMenuItem("ADC Design",       tabName = "tab_adc_design",   icon = icon("atom")),
       bs4SidebarMenuItem("Target Biology",   tabName = "tab_target_bio",   icon = icon("circle-nodes")),
@@ -774,7 +775,114 @@ ui <- bs4DashPage(
         )
       ),
 
-      # ── TAB 7: AI ASSISTANT ───────────────────────────────────────────────
+      # ── TAB 7: MRM ASSESSMENT ────────────────────────────────────────────
+      bs4TabItem(tabName = "tab_mrm",
+        fluidRow(
+          column(width = 12,
+            div(class = "tab-header",
+              div(class = "stage-chip",
+                span(class = "stage-num", "STAGE_07"),
+                span(class = "stage-name", "MRM ASSESSMENT")
+              ),
+              div(class = "tab-title", "MRM Peak Quality Assessment"),
+              div(class = "tab-subtitle",
+                "Evaluate transition signal quality, peak symmetry, co-elution scores, ",
+                "and DAR-level chromatographic resolution from uploaded Skyline or mProphet exports.")
+            )
+          )
+        ),
+        fluidRow(
+          column(width = 5,
+            bs4Card(title = tagList(icon("upload"), " Upload MRM Report"), width = 12,
+              solidHeader = FALSE, collapsible = FALSE,
+              div(class = "section-label", "SKYLINE / MPROPHET EXPORT"),
+              fileInput("mrm_file", NULL,
+                accept = c(".csv", ".tsv", ".txt"),
+                placeholder = "Skyline peak-area CSV or mProphet report"),
+              tags$p(class = "text-muted", style = "font-size:11px;",
+                "Accepted formats: Skyline peak-area CSV (peptide × replicate), ",
+                "mProphet scored output, or a custom tab-separated file with columns: ",
+                "Peptide, Precursor.Mz, Product.Mz, Area, RT, FWHM."),
+              hr(style = "border-color:var(--grey-200);"),
+              div(class = "section-label", "DAR LEVEL ANNOTATION"),
+              selectInput("mrm_dar_col", "DAR column (optional):",
+                choices = c("None — single DAR" = "", "Auto-detect from peptide name" = "auto"),
+                width = "100%"),
+              checkboxInput("mrm_group_by_dar", "Group metrics by DAR level", value = TRUE),
+              hr(style = "border-color:var(--grey-200);"),
+              div(class = "section-label", "QUALITY THRESHOLDS"),
+              sliderInput("mrm_sn_thresh", "Min signal-to-noise ratio:",
+                min = 3, max = 100, value = 10, step = 1, width = "100%"),
+              sliderInput("mrm_cv_thresh", "Max CV% (inter-replicate area):",
+                min = 5, max = 50, value = 20, step = 1, width = "100%"),
+              sliderInput("mrm_sym_thresh", "Min peak symmetry score (0–1):",
+                min = 0, max = 1, value = 0.70, step = 0.05, width = "100%"),
+              actionButton("btn_run_mrm", "Run MRM Assessment",
+                icon = icon("chart-area"), class = "btn-primary-custom w-100")
+            ),
+
+            bs4Card(title = tagList(icon("sliders"), " Transition Ranking"), width = 12,
+              solidHeader = FALSE, collapsible = TRUE, collapsed = FALSE,
+              div(class = "section-label", "RANK TRANSITIONS BY"),
+              radioButtons("mrm_rank_by", NULL,
+                choices = c(
+                  "Area (highest signal first)" = "area",
+                  "S/N ratio"                   = "sn",
+                  "CV% (most reproducible first)" = "cv",
+                  "Peak symmetry"               = "symmetry"
+                ), selected = "area", width = "100%"),
+              numericInput("mrm_top_n", "Keep top N transitions per peptide:",
+                value = 3, min = 1, max = 10, step = 1, width = "100%"),
+              actionButton("btn_export_ranked", "Export Ranked Transitions",
+                icon = icon("download"), class = "btn-secondary-custom w-100 mt-2")
+            )
+          ),
+
+          column(width = 7,
+            bs4Card(title = tagList(icon("circle-check"), " Assessment Summary"), width = 12,
+              solidHeader = FALSE, collapsible = FALSE,
+              uiOutput("mrm_summary_ui")
+            ),
+
+            bs4Card(title = tagList(icon("table"), " Transition Quality Table"), width = 12,
+              solidHeader = FALSE, collapsible = FALSE,
+              tabsetPanel(id = "mrm_tabs",
+                tabPanel(title = "All Transitions",
+                  br(),
+                  tags$p(style = "color:#555; font-size:12px;",
+                    "Per-transition quality metrics. Green = PASS, amber = marginal, red = FAIL ",
+                    "against the thresholds set in the left panel."),
+                  withSpinner(DTOutput("mrm_quality_dt"), type = 6, color = "#2980b9")
+                ),
+                tabPanel(title = "DAR-Level Summary",
+                  br(),
+                  tags$p(style = "color:#555; font-size:12px;",
+                    "Mean area, CV%, and pass-rate per DAR level across all replicates."),
+                  withSpinner(DTOutput("mrm_dar_summary_dt"), type = 6, color = "#2980b9")
+                ),
+                tabPanel(title = "Peak Plots",
+                  br(),
+                  tags$p(style = "color:#555; font-size:12px;",
+                    "Chromatographic peak area and CV distribution plots."),
+                  uiOutput("mrm_peak_plots_ui")
+                ),
+                tabPanel(title = "Ranked Export",
+                  br(),
+                  tags$p(style = "color:#555; font-size:12px;",
+                    "Ranked transition list ready for final method transfer. ",
+                    "Download as CSV or Skyline-compatible format."),
+                  withSpinner(DTOutput("mrm_ranked_dt"), type = 6, color = "#2980b9"),
+                  br(),
+                  downloadButton("btn_dl_ranked_csv",  "Download CSV",    class = "btn-sm btn-outline-secondary me-2"),
+                  downloadButton("btn_dl_ranked_sky",  "Download Skyline CSV", class = "btn-sm btn-outline-secondary")
+                )
+              )
+            )
+          )
+        )
+      ),
+
+      # ── AI ASSISTANT ─────────────────────────────────────────────────────────
       bs4TabItem(tabName = "tab_ai",
         fluidRow(
           # ── Left column: API key + context + quick prompts ─────────────────
@@ -3463,6 +3571,253 @@ for a detailed explanation. If asked for a table, use markdown table format.",
       "Mass accuracy: ≤0.05 mDa vs Unimod\n"
     )
   })
+
+  # ============================================================
+  #  MRM ASSESSMENT (Tab 7)
+  # ============================================================
+
+  mrm_data <- reactiveVal(NULL)
+
+  observeEvent(input$btn_run_mrm, {
+    req(input$mrm_file)
+    tryCatch({
+      raw <- data.table::fread(input$mrm_file$datapath)
+
+      # Normalise column names: lowercase, strip spaces
+      setnames(raw, tolower(gsub("[ .]", "_", names(raw))))
+
+      # Identify required columns with flexible matching
+      area_col  <- grep("area|intensity|signal", names(raw), value = TRUE)[1]
+      pep_col   <- grep("peptide|sequence", names(raw), value = TRUE)[1]
+      prec_col  <- grep("precursor|prec", names(raw), value = TRUE)[1]
+      prod_col  <- grep("product|fragment|prod", names(raw), value = TRUE)[1]
+      rt_col    <- grep("^rt$|retention|rt_", names(raw), value = TRUE)[1]
+      fwhm_col  <- grep("fwhm|width", names(raw), value = TRUE)[1]
+
+      if (is.na(area_col) || is.na(pep_col)) {
+        showNotification(
+          "Could not detect Peptide or Area columns. Check that the file has column headers.",
+          type = "error", duration = 8
+        )
+        return()
+      }
+
+      dt <- data.table::copy(raw)
+      setnames(dt, c(pep_col, area_col), c("Peptide", "Area"), skip_absent = TRUE)
+      if (!is.na(prec_col)) setnames(dt, prec_col, "Precursor_Mz", skip_absent = TRUE)
+      if (!is.na(prod_col)) setnames(dt, prod_col, "Product_Mz",   skip_absent = TRUE)
+      if (!is.na(rt_col))   setnames(dt, rt_col,   "RT",           skip_absent = TRUE)
+      if (!is.na(fwhm_col)) setnames(dt, fwhm_col, "FWHM",        skip_absent = TRUE)
+
+      dt[, Area := as.numeric(Area)]
+
+      # Compute per-transition CV across replicates if a replicate column exists
+      rep_col <- grep("replicate|sample|file", names(dt), value = TRUE)[1]
+
+      if (!is.na(rep_col)) {
+        cv_dt <- dt[, .(
+          Mean_Area = mean(Area, na.rm = TRUE),
+          SD_Area   = sd(Area,   na.rm = TRUE),
+          N_Rep     = .N
+        ), by = "Peptide"]
+        cv_dt[, CV_pct := ifelse(Mean_Area > 0, 100 * SD_Area / Mean_Area, NA_real_)]
+        dt <- merge(dt[!duplicated(Peptide)], cv_dt, by = "Peptide", all.x = TRUE)
+      } else {
+        dt[, Mean_Area := Area]
+        dt[, CV_pct    := NA_real_]
+        dt[, N_Rep     := 1L]
+      }
+
+      # Simple S/N heuristic: area / (area * 0.05 baseline noise estimate)
+      dt[, SN := ifelse(!is.na(Area) & Area > 0, Area / (Area * 0.05 + 1), NA_real_)]
+      dt[, SN := pmin(SN, 999)]   # cap for display
+
+      # Peak symmetry from FWHM if available (placeholder: 1 if no FWHM)
+      if ("FWHM" %in% names(dt)) {
+        dt[, Symmetry := pmin(1, pmax(0, 1 - abs(FWHM - median(FWHM, na.rm = TRUE)) /
+                                              (median(FWHM, na.rm = TRUE) + 1e-9)))]
+      } else {
+        dt[, Symmetry := NA_real_]
+      }
+
+      # QC pass / fail
+      sn_thresh  <- input$mrm_sn_thresh
+      cv_thresh  <- input$mrm_cv_thresh
+      sym_thresh <- input$mrm_sym_thresh
+
+      dt[, QC_SN  := ifelse(is.na(SN),       NA, SN       >= sn_thresh)]
+      dt[, QC_CV  := ifelse(is.na(CV_pct),   NA, CV_pct   <= cv_thresh)]
+      dt[, QC_Sym := ifelse(is.na(Symmetry), NA, Symmetry >= sym_thresh)]
+      dt[, QC_Pass := rowSums(data.frame(
+            sn  = ifelse(is.na(QC_SN),  0L, as.integer(QC_SN)),
+            cv  = ifelse(is.na(QC_CV),  0L, as.integer(QC_CV)),
+            sym = ifelse(is.na(QC_Sym), 0L, as.integer(QC_Sym))
+          ), na.rm = TRUE) == 3L]
+
+      mrm_data(dt)
+      showNotification(paste0("Loaded ", nrow(dt), " transitions."), type = "message")
+    }, error = function(e) {
+      showNotification(paste("Error reading file:", conditionMessage(e)), type = "error", duration = 10)
+    })
+  })
+
+  output$mrm_summary_ui <- renderUI({
+    dt <- mrm_data()
+    if (is.null(dt)) {
+      return(div(class = "text-muted", style = "padding:20px;",
+        icon("circle-info"), " Upload a Skyline or mProphet export and click ",
+        tags$strong("Run MRM Assessment"), " to see quality metrics here."))
+    }
+    n_total <- nrow(dt)
+    n_pass  <- if ("QC_Pass" %in% names(dt)) sum(dt$QC_Pass, na.rm = TRUE) else NA
+    pass_pct <- if (!is.na(n_pass) && n_total > 0) round(100 * n_pass / n_total) else NA
+    mean_cv  <- if ("CV_pct" %in% names(dt)) round(mean(dt$CV_pct, na.rm = TRUE), 1) else NA
+    med_sn   <- if ("SN" %in% names(dt)) round(median(dt$SN, na.rm = TRUE), 1) else NA
+
+    badge_col <- if (!is.na(pass_pct) && pass_pct >= 80) "badge-good"
+                 else if (!is.na(pass_pct) && pass_pct >= 50) "badge-borderline"
+                 else "badge-poor"
+
+    div(
+      fluidRow(
+        column(3, div(class = "rationale-card",
+          div(style = "font-size:28px; font-weight:700;", n_total),
+          div(class = "section-label", "TRANSITIONS"))),
+        column(3, div(class = "rationale-card",
+          div(style = "font-size:28px; font-weight:700;",
+            if (!is.na(n_pass)) n_pass else "—"),
+          div(class = "section-label", "PASS QC"))),
+        column(3, div(class = "rationale-card",
+          div(style = "font-size:28px; font-weight:700;",
+            if (!is.na(pass_pct)) paste0(pass_pct, "%") else "—"),
+          div(class = badge_col, if (!is.na(pass_pct)) "PASS RATE" else "N/A"))),
+        column(3, div(class = "rationale-card",
+          div(style = "font-size:28px; font-weight:700;",
+            if (!is.na(mean_cv)) paste0(mean_cv, "%") else "—"),
+          div(class = "section-label", "MEAN CV")))
+      )
+    )
+  })
+
+  output$mrm_quality_dt <- DT::renderDT({
+    dt <- mrm_data()
+    if (is.null(dt)) return(data.frame(Message = "No data loaded yet."))
+    show_cols <- intersect(
+      c("Peptide", "Precursor_Mz", "Product_Mz", "RT", "Mean_Area", "CV_pct",
+        "SN", "Symmetry", "QC_Pass"),
+      names(dt)
+    )
+    DT::datatable(
+      dt[, ..show_cols],
+      options = list(pageLength = 15, scrollX = TRUE, dom = "ftip"),
+      rownames = FALSE
+    ) |>
+    DT::formatRound(intersect(c("Mean_Area", "CV_pct", "SN", "Symmetry"), show_cols), digits = 2) |>
+    DT::formatStyle("QC_Pass",
+      backgroundColor = DT::styleEqual(c(TRUE, FALSE, NA), c("#d1fae5", "#fee2e2", "#f3f4f6")))
+  })
+
+  output$mrm_dar_summary_dt <- DT::renderDT({
+    dt <- mrm_data()
+    if (is.null(dt)) return(data.frame(Message = "No data loaded yet."))
+    if (!"DAR" %in% names(dt)) {
+      # Attempt to parse DAR from peptide name (pattern DAR0..DAR8 or D0..D8)
+      dt[, DAR := stringr::str_extract(Peptide, "DAR\\d|D\\d")]
+      dt[, DAR := gsub("D", "DAR", DAR)]
+    }
+    if (all(is.na(dt$DAR))) return(data.frame(Message = "No DAR annotation found. Add a DAR column or embed DAR0–DAR8 in peptide names."))
+    smry <- dt[!is.na(DAR), .(
+      N         = .N,
+      Mean_Area = round(mean(Mean_Area, na.rm = TRUE), 0),
+      Mean_CV   = round(mean(CV_pct,    na.rm = TRUE), 1),
+      Pass_Rate = if ("QC_Pass" %in% names(dt))
+                    paste0(round(100 * sum(QC_Pass, na.rm = TRUE) / .N), "%")
+                  else "—"
+    ), by = DAR][order(DAR)]
+    DT::datatable(smry, options = list(pageLength = 10, dom = "t"), rownames = FALSE)
+  })
+
+  output$mrm_peak_plots_ui <- renderUI({
+    dt <- mrm_data()
+    if (is.null(dt)) return(div(class = "text-muted", "No data loaded."))
+    tagList(
+      plotOutput("mrm_area_plot",  height = "240px"),
+      plotOutput("mrm_cv_plot",    height = "240px")
+    )
+  })
+
+  output$mrm_area_plot <- renderPlot({
+    dt <- mrm_data()
+    if (is.null(dt) || !"Mean_Area" %in% names(dt)) return(NULL)
+    top20 <- head(dt[order(-Mean_Area)], 20)
+    par(mar = c(6, 5, 2, 1), bg = "white")
+    barplot(top20$Mean_Area, names.arg = substr(top20$Peptide, 1, 16),
+      las = 2, col = "#0ea5e9", border = NA,
+      main = "Top 20 Transitions by Mean Area",
+      ylab = "Mean Area", cex.names = 0.7)
+  })
+
+  output$mrm_cv_plot <- renderPlot({
+    dt <- mrm_data()
+    if (is.null(dt) || all(is.na(dt$CV_pct))) return(NULL)
+    par(mar = c(4, 5, 2, 1), bg = "white")
+    hist(dt$CV_pct, breaks = 20, col = "#0ea5e9", border = "white",
+      main = "CV% Distribution", xlab = "CV (%)", ylab = "Count")
+    abline(v = input$mrm_cv_thresh, col = "#d97706", lwd = 2, lty = 2)
+  })
+
+  mrm_ranked <- reactive({
+    dt <- mrm_data()
+    if (is.null(dt)) return(NULL)
+    rank_col <- switch(input$mrm_rank_by,
+      area     = "Mean_Area",
+      sn       = "SN",
+      cv       = "CV_pct",
+      symmetry = "Symmetry",
+      "Mean_Area"
+    )
+    if (!rank_col %in% names(dt)) return(dt)
+    descending <- rank_col != "CV_pct"
+    if (descending) dt[order(-get(rank_col))] else dt[order(get(rank_col))]
+  })
+
+  output$mrm_ranked_dt <- DT::renderDT({
+    dt <- mrm_ranked()
+    if (is.null(dt)) return(data.frame(Message = "No data loaded yet."))
+    top_n <- input$mrm_top_n
+    show_cols <- intersect(
+      c("Peptide", "Precursor_Mz", "Product_Mz", "Mean_Area", "CV_pct", "SN", "QC_Pass"),
+      names(dt)
+    )
+    DT::datatable(
+      head(dt[, ..show_cols], top_n * 5),
+      options = list(pageLength = 15, scrollX = TRUE, dom = "ftip"),
+      rownames = FALSE
+    )
+  })
+
+  output$btn_dl_ranked_csv <- downloadHandler(
+    filename = function() paste0("MRM_Ranked_Transitions_", Sys.Date(), ".csv"),
+    content  = function(file) {
+      dt <- mrm_ranked()
+      if (!is.null(dt)) data.table::fwrite(dt, file)
+    }
+  )
+
+  output$btn_dl_ranked_sky <- downloadHandler(
+    filename = function() paste0("MRM_Skyline_", Sys.Date(), ".csv"),
+    content  = function(file) {
+      dt <- mrm_ranked()
+      if (is.null(dt)) return()
+      sky_cols <- c("Peptide", "Precursor_Mz", "Product_Mz", "Mean_Area")
+      sky <- dt[, intersect(sky_cols, names(dt)), with = FALSE]
+      setnames(sky, intersect(names(sky), c("Peptide", "Precursor_Mz", "Product_Mz", "Mean_Area")),
+                    intersect(c("Peptide Sequence", "Precursor Mz", "Product Mz", "Library Intensity"),
+                              c("Peptide Sequence", "Precursor Mz", "Product Mz", "Library Intensity")[
+                                seq_along(intersect(sky_cols, names(dt)))]))
+      data.table::fwrite(sky, file)
+    }
+  )
 
   # ============================================================
   #  NEW TABS — ADC Design, Target Biology, Antibody Characterization, PK

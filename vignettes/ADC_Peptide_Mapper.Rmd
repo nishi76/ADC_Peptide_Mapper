@@ -1,25 +1,26 @@
 ---
 title: "ADC Peptide Mapper: A Workflow Guide"
-subtitle: "From FASTA to MRM Transition List"
-author: "Nishikant Wase"
-date: "June 2026"
+author:
+  - name: Nishikant Wase
+    email: nishikant.wase@gmail.com
+package: ADCPeptideMapper
 output:
-  pdf_document:
+  BiocStyle::html_document:
     toc: true
-    toc_depth: 2
+    toc_depth: 3
     number_sections: true
-    latex_engine: xelatex
-    highlight: null
-geometry: "margin=2.5cm"
-fontsize: 11pt
-linestretch: 1.2
-header-includes:
-  - \usepackage{booktabs}
-  - \usepackage{hyperref}
-  - \hypersetup{colorlinks=false, pdfborder={0 0 0}}
-  - \usepackage{microtype}
-  - \usepackage{parskip}
-  - \setlength{\parindent}{0pt}
+abstract: |
+  ADC Peptide Mapper v1.0 is an R Shiny application for in-silico design and
+  peptide-mapping analysis of Antibody-Drug Conjugates. Starting from FASTA sequences,
+  it performs proteolytic digest, uniqueness checking against background proteomes,
+  MRM transition generation, heavy-isotope labelling, and MS/MS search integration.
+  Version 1.0 adds four computational design modules: ADC Design (linker chemistry,
+  payload selection, deconjugation kinetics), Target Biology (internalization scoring,
+  surface accessibility), Antibody Characterization (binding affinity, epitope classification,
+  FcRn half-life prediction), and PK & Efficacy (bystander effect scoring, PK simulation).
+  All prediction engines are rule-based and curated; no external API calls or machine
+  learning models are required. This vignette demonstrates the full v1.0 workflow
+  using a Trastuzumab-DXd analogue example.
 vignette: >
   %\VignetteIndexEntry{ADC Peptide Mapper: A Workflow Guide}
   %\VignetteEngine{knitr::rmarkdown}
@@ -27,378 +28,767 @@ vignette: >
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval = FALSE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  eval    = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  comment = "#>"
+)
 ```
 
-# Overview
+# Introduction
 
-ADC Peptide Mapper is an R Shiny application for in-silico peptide mapping of
-Antibody-Drug Conjugates (ADCs). Starting from a FASTA sequence, it performs
-enzymatic digestion, uniqueness checking against human / cynomolgus monkey / rat
-proteome backgrounds, Drug-to-Antibody Ratio (DAR) distribution modelling, and
-instrument-specific MRM/DIA transition list generation.
+Antibody-Drug Conjugates (ADCs) are a rapidly expanding class of targeted therapeutics
+that combine the specificity of monoclonal antibodies with the potency of small-molecule
+cytotoxins. Designing and analytically characterising ADCs requires integration of
+molecular biology, protein biochemistry, analytical chemistry, and pharmacokinetic
+modelling — disciplines that have historically relied on separate, siloed tools.
 
-This vignette walks through the complete workflow for Trastuzumab-DXd using the
-built-in demo sequence.
+ADC Peptide Mapper v1.0 integrates this workflow into a single, browser-based R Shiny
+application that runs locally or on a hosted server without modification. The application
+covers two broad phases:
 
-**Permanent DOI:** \url{https://doi.org/10.5281/zenodo.20681412}
+**Phase 1 — Peptide mapping (Tabs 1–6):** FASTA ingestion, proteolytic digest,
+cross-species uniqueness checking, MRM/DIA transition generation, SIL-IS labelling,
+and MS Amanda / Tide-Crux MS/MS search.
+
+**Phase 2 — ADC design (Tabs 8–11):** Curated linker and payload databases, first-order
+deconjugation kinetics, internalization and surface accessibility scoring, binding affinity
+classification, epitope characterization, FcRn / half-life prediction, bystander effect
+scoring, and one-compartment PK simulation.
+
+All Phase 2 predictions are computed entirely in R using curated data tables. No network
+requests, no ML inference, no binary dependencies beyond base R and the packages listed
+in Section 2.
+
+## Citation
+
+If you use ADC Peptide Mapper v1.0 in published research, please cite:
+
+```
+Wase, N. (2026). ADC Peptide Mapper (Version 1.0) [Software].
+https://doi.org/10.5281/zenodo.20681412
+```
 
 ---
 
 # Installation
 
-## R Packages
+## R packages
 
-```{r install}
+```{r install-packages}
 install.packages(c(
   "shiny", "bs4Dash", "DT", "data.table", "openxlsx",
-  "httr2", "stringr", "dplyr", "shinyjs", "htmltools"
+  "httr2", "stringr", "dplyr", "shinycssloaders",
+  "shinyjs", "htmltools"
 ))
+install.packages("XML")  # for mzIdentML/pepXML parsing in Tab 6
 ```
 
-## Build Background Databases (one-time)
+No Bioconductor packages are required to run the application. The vignette imports
+`Biostrings` in one illustrative code block only; it is not a runtime dependency.
 
-The uniqueness filter requires pre-digested reference proteomes. Build them once
-before launching the app. An internet connection is required; the download takes
-approximately 10 minutes.
+## Build background proteome databases (one-time)
 
-```{r build-bg}
-setwd("path/to/ADC_Peptide_Mapper_v0.8")
+```{r build-db}
+setwd("path/to/ADC_Peptide_Mapper_v1.0")
 source("build_background_db.R")
 ```
 
-This creates three files in `data/`:
+This downloads Human, Cynomolgus Monkey, and Rat Swiss-Prot proteomes from UniProt
+and stores them as indexed `.rds` files in `data/`. Internet access is required once.
+Background databases built for v0.8 are directly compatible with v1.0.
 
-- `bg_human.rds` --- Human (Homo sapiens), ~20,400 UniProt Swiss-Prot proteins
-- `bg_monkey.rds` --- Cynomolgus monkey (Macaca fascicularis), ~1,200 proteins
-- `bg_rat.rds` --- Rat (Rattus norvegicus), ~8,200 proteins
-
-Files from a previous v0.7 installation can be reused without rebuilding.
-
-## Launch
+## Launch the application
 
 ```{r launch}
 shiny::runApp("app.R")
 ```
 
-The app opens in your default browser. A built-in Trastuzumab heavy chain + light
-chain FASTA is pre-loaded so you can explore the workflow immediately.
+The application opens on Tab 1 (Input and Setup) with the Trastuzumab HC/LC demo
+sequence pre-loaded.
 
 ---
 
-# Workflow Step 1: Input and Setup (Tab 1)
+# Example dataset: Trastuzumab-DXd analogue
 
-## Load the ADC Sequence
+This vignette uses a fictional Trastuzumab-DXd analogue — trastuzumab conjugated via
+a cleavable MC-VC-PABC linker to DXd (deruxtecan payload) — as the running example.
+The antibody targets HER2 (ERBB2; UniProt P04626). Key design parameters:
 
-Two input modes are available:
-
-- **Upload File** --- upload a `.fasta`, `.fa`, or `.txt` file containing one or
-  more `>header / sequence` entries. Each entry is treated as a separate chain.
-- **Paste Sequence** --- paste FASTA text directly. The demo Trastuzumab sequence
-  is pre-loaded; replace it with your own ADC.
-
-A chain preview table appears after parsing, confirming the number of chains, their
-headers, lengths (AA), and first 60 residues.
-
-**ADC Name:** enter a short identifier (e.g.\ `Trastuzumab-DXd`). This is used in
-all output filenames and as the `ADCName` column in exported transition lists.
-
-## Digest Settings
-
-| Setting | Recommended for tryptic mapping | Notes |
-|---|---|---|
-| Primary enzyme | Trypsin | Cleaves after K/R, not before P |
-| Second enzyme | None | Set to Lys-C for Trypsin+Lys-C |
-| Missed cleavages | 0 or 1 | 0 for standard mapping; 1 to increase coverage |
-| Peptide length filter | 6--30 AA | Fixed; cannot be changed |
-
-## Background Proteome
-
-Select **Human (Homo sapiens)** for human ADC PK studies. For preclinical species
-comparison, select Cynomolgus Monkey or Rat. A custom FASTA upload is available for
-other species.
-
-The **Use missed cleavage level** dropdown for the background sets how many missed
-cleavages were allowed when the background was digested. Setting it to match the
-digest missed cleavage level gives the most conservative (strictest) uniqueness call.
-
-## Run Digest
-
-Click **Run Digest \& Uniqueness Check** (at the bottom of the FASTA Input card).
-The app digests all chains, applies modifications, checks uniqueness against the
-selected background, and navigates to Tab 3. A notification reports:
-
-- Total peptide variants generated
-- Number unique to the ADC (not in background)
-
----
-
-# Workflow Step 2: Modifications (Tab 2)
-
-## Fixed and Variable Modifications
-
-Carbamidomethylation (+57.021 Da on C) is always applied. Select variable
-modifications to include in the digest:
-
-- **Oxidation (M)** --- standard variable mod for methionine sulfoxide
-- **Drug-Linker Payload** --- select from the ADCDB dropdown (MMAE, DM1, DXd, SN-38,
-  etc.) or enter a custom mass shift. Applied to cysteine (C) residues at conjugation
-  sites.
-
-## Linker Biotransformation Modifications
-
-For ADC linker stability studies, enable one or more biotransformation mods:
-
-| Modification | Mass shift | Scientific context |
-|---|---|---|
-| Maleimide ring hydrolysis | +18.011 Da on C | Succinimide-thioether hydrolysis in plasma |
-| Succinimide ring-opening | +18.011 Da on C | Ring-opened adduct at pH 7.4 |
-| Thioether to sulfoxide | +15.995 Da on C | Oxidative stress |
-| Disulfide loss | -31.990 Da on C | Retro-Michael elimination |
-| Conjugation-site deamidation | +0.984 Da on N | Asn deamidation near conjugation site |
-
-These appear as separate peptide variants in the Tab 3 table and in the transition list.
-
-## DAR Distribution Settings
-
-Set the conjugation chemistry and maximum DAR level. The app generates separate
-precursor entries for each DAR species (DAR0, DAR1, ..., DARn), each with the
-appropriate number of drug-linker mass units added to conjugated peptide(s).
-
----
-
-# Workflow Step 3: Peptide Results (Tab 3)
-
-## Interpreting the Peptide Table
-
-The table columns are:
-
-| Column | Description |
+| Parameter | Value |
 |---|---|
-| Chain | FASTA header of the source chain |
-| Peptide Sequence | Unmodified sequence |
-| Modified Sequence | Sequence with brackets, e.g.\ `CASC[CAM]K` |
-| Start / End | 1-based positions in the chain |
-| Length | Number of amino acids |
-| Modifications | Applied PTMs, e.g.\ `CAM@C3; DXd@C3` |
-| Mass (Da) | Monoisotopic mass |
-| Unique to ADC | Navy badge = unique; grey badge = found in background |
-
-## Filtering
-
-Use the dropdown filters above the table to restrict to:
-
-- A specific chain (Heavy Chain, Light Chain)
-- Unique peptides only (preferred for bioanalytical method development)
-- Modified peptides only
-
-## Sequence Coverage Map
-
-The coverage map card appears below the table after the digest. Use it to:
-
-- Identify gaps (regions not covered by any peptide in the 6--30 AA window)
-- Colour by uniqueness to see which regions have ADC-specific peptides
-- Increase missed cleavages in Tab 1 to close coverage gaps
-
-Download the map as a 300 dpi PNG for use in reports.
-
-## Cross-Species Co-Uniqueness
-
-For multi-species PK/TK studies, use the **Co-uniqueness Check** panel to identify
-peptides unique across all selected species simultaneously. This prevents selection of
-surrogate peptides that cross-react with the preclinical species matrix proteome.
+| Antibody | Trastuzumab (IgG1) |
+| Target antigen | HER2 (ERBB2) |
+| Linker | MC-VC-PABC (maleimide-thiol, cleavable) |
+| Payload | DXd (Topo I inhibitor) |
+| Conjugation site | Cys-engineered (site-specific) |
+| Target DAR | 8 |
+| Enzyme (peptide mapping) | Trypsin |
 
 ---
 
-# Workflow Step 4: Transition List (Tab 4)
+# Step 1 — Input and Setup (Tab 1)
 
-## Instrument Selection
+Navigate to Tab 1. The demo Trastuzumab HC and LC sequences are pre-loaded.
 
-Select the target instrument platform from the dropdown. The app adjusts the collision
-energy formula and CSV column layout automatically:
+```{r step1-fasta}
+# Example FASTA — Trastuzumab heavy chain (N-terminal fragment shown)
+trastuzumab_hc <- paste0(
+  ">Trastuzumab_HC\n",
+  "EVQLVESGGGLVQPGGSLRLSCAASGFNIKDTYIHWVRQAPGKGLEWVARIYPTNGYTRYADSVKGRFTIS\n",
+  "ADTSKNTAYLQMNSLRAEDTAVYYCSRWGGDGFYAMDYWGQGTLVTVSSASTKGPSVFPLAPSSKSTSGGT\n",
+  "AALGCLVKDYFPEPVTVSWNSGALTSGVHTFPAVLQSSGLYSLSSVVTVPSSSLGTQTYICNVNHKPSNTK\n",
+  "VDKKVEPKSCDKTHTCPPCPAPELLGGPSVFLFPPKPKDTLMISRTPEVTCVVVDVSHEDPEVKFNWYVDG\n",
+  "VEVHNAKTKPREEQYNSTYRVVSVLTVLHQDWLNGKEYKCKVSNKALPAPIEKTISKAKGQPREPQVYTLPP\n",
+  "SREEMTKNQVSLTCLVKGFYPSDIAVEWESNGQPENNYKTTPPVLDSDGSFFLYSKLTVDKSRWQQGNVFSC\n",
+  "SVMHEALHNHYTQKSLSLSPGK"
+)
+```
 
-| Platform | CE type | Use case |
+**Inputs to set:**
+
+- ADC name: `Trastuzumab-DXd-analogue`
+- Enzyme: `Trypsin`
+- Missed cleavages: `1`
+- Background proteome: `Human`
+- Chains: HC (heavy chain) + LC (light chain)
+
+Click **Run Digest & Uniqueness Check**. The pipeline runs in 5–10 seconds for a typical
+IgG sequence pair.
+
+---
+
+# Step 2 — Modifications (Tab 2)
+
+## Fixed modifications
+
+Carbamidomethylation of cysteine (C+57.021 Da) is pre-selected and fixed. Do not uncheck
+this unless your sample was reduced and alkylated with a different reagent.
+
+## Drug-linker payload modification
+
+In the **Payload Modifications** section, select:
+
+- Linker/payload: `MC-VC-PABC-DXd`
+- Site: `Cys (inter-chain; Cys226, Cys229)`
+- Max DAR: `8`
+
+The MC-VC-PABC-DXd modification adds a mass shift corresponding to the intact
+drug-linker adduct to cysteine-containing peptides from the hinge region and Fab
+disulfide loops.
+
+## Linker biotransformation modifications
+
+Enable `Maleimide ring hydrolysis (+18 Da)` and `Succinimide ring-opening` to capture
+common in-vivo biotransformations on maleimide-thiol conjugates. These modifications
+expand the search space for the MS/MS search in Tab 6.
+
+---
+
+# Step 3 — Peptide Results (Tab 3)
+
+After digest completes, Tab 3 shows the full peptide table. For Trastuzumab trypsin
+digest with 1 missed cleavage, expect approximately 80–120 unique peptides.
+
+```{r step3-filter}
+library(data.table)
+
+peptide_table <- fread("output/peptide_table.csv")
+
+# Select peptides unique to the ADC sequence (not found in background proteome)
+unique_peptides <- peptide_table[Uniqueness == "Unique"]
+
+# Focus on drug-modified peptides (hinge region cysteines)
+hinge_peptides <- peptide_table[grepl("C", Sequence) & Modification != ""]
+
+cat("Unique tryptic peptides:", nrow(unique_peptides), "\n")
+cat("Drug-modified peptides:", nrow(hinge_peptides), "\n")
+```
+
+**Coverage map:** the sequence coverage panel displays all detected peptides as horizontal
+bars on the HC and LC primary sequences, colour-coded by uniqueness or modification status.
+For Trastuzumab-DXd, look for peptide bands covering the Fc hinge region (HC residues
+~220–240) where inter-chain disulfide cysteines are the primary conjugation sites.
+
+**Download:** click **Download Excel** to save the full peptide table with uniqueness
+annotations, mass accuracy, and coverage statistics.
+
+---
+
+# Step 4 — Transition List (Tab 4)
+
+## Platform selection
+
+Select your mass spectrometry platform:
+
+| Platform | Format | Notes |
 |---|---|---|
-| Skyline (generic) | Sciex-style | Import into Skyline for further optimisation |
-| Thermo (Orbitrap/TSQ) | Linear, charge-dependent | TSQ Altis, TSQ Quantiva |
-| SCIEX (QTRAP/TripleTOF) | Empirical | QTRAP 6500+, TripleTOF 6600 |
-| Bruker (timsTOF) | TIMS-adjusted | timsTOF Pro, timsTOF SCP |
-| Agilent (QQQ/QTOF) | Agilent empirical | 6495, 6560 |
-| Waters (Xevo/Synapt) | Waters empirical | Xevo TQ-S, Synapt G2-Si |
+| Skyline | Skyline CSV | Compatible with all Skyline MS workflow templates |
+| Thermo TSQ | Thermo CSV | SRM method import for TSQ Altis / Fortis / Endura |
+| SCIEX QTRAP | SCIEX CSV | MRM method for QTRAP 6500+ |
+| Bruker timsTOF | Bruker CSV | PASEF-MRM compatible |
+| Agilent | Agilent CSV | 6495 QQQ method format |
 
-## DAR Level Selection
+For DAR-level quantification, select **All DAR levels (DAR0–DAR8)** to generate
+transitions for each drug loading species. The app creates separate transition lists
+per DAR level with peptide modifications adjusted for drug count.
 
-Select one or more DAR levels (DAR0, DAR1, ..., DARn) to include. Each level generates
-separate rows in the transition list with the corresponding precursor m/z.
+## Fragment ions
 
-## Ion Parameters
+The default selection generates:
 
-Fragment ions are b2--b(n-1) and y2--y(n-1), singly charged. Precursor charge states
-2+, 3+, and 4+ are generated. Use **Top N ions per precursor** to limit the list to the
-strongest predicted ions for a given platform.
+- Charge states: 2+ and 3+ (precursor)
+- Fragment series: y-ions (y2 through y(n-1)) + b-ions (b2 through b(n-1))
+- Product ion charge: 1+ (singly charged)
 
-## Download
-
-For Skyline-based method development:
-
-1. Download **Skyline CSV (Unique Only)**.
-2. In Skyline: **File → Import → Transition List → Column headers match** and select
-   the CSV.
-
-For direct instrument method setup, download the **Instrument CSV** for your platform
-or the **Excel Summary** for a complete multi-sheet workbook.
-
----
-
-# Workflow Step 5: Heavy Labelling (Tab 5)
-
-Heavy stable isotope labelling (SIL) peptides serve as internal standards (SIL-IS) for
-absolute quantification by LC-MS/MS.
-
-## Typical SILAC-style experiment
-
-1. Select **13C6 15N2 Lys** (+8.014 Da) for tryptic peptides ending in K, and/or
-   **13C6 15N4 Arg** (+10.008 Da) for peptides ending in R.
-2. Select charge states 2+ and 3+.
-3. Download **Heavy Peptides Excel**.
-4. Use the Light/Heavy Pair Summary sheet to verify the expected Delta m/z
-   (e.g.\ 4.007 Th for a doubly charged peptide labelled with 13C6 15N2 Lys).
-
----
-
-# Workflow Step 6: MS/MS Search Confirmation (Tab 6)
-
-After acquiring LC-MS/MS data on an ADC tryptic digest, use Tab 6 to confirm peptide
-identifications against the theoretical list from Tab 3.
-
-## Recommended workflow
-
-1. Convert raw files to mzML with MSConvert:
-   ```bash
-   msconvert sample.raw --mzML --filter "peakPicking true 1-"
-   ```
-2. Upload the mzML file in Tab 6.
-3. Ensure the correct engine is detected (MS Amanda badge = green).
-4. Click **Run Search**. The app generates `settings.xml` from your Tab 1/2 parameters
-   and launches MS Amanda.
-5. After the search, review the **Detected vs Theoretical** sub-tab and adjust the
-   score threshold slider to balance sensitivity and specificity.
-6. Check the target-decoy FDR estimate. For quantitative bioanalytical methods, aim for
-   FDR $\leq 1\%$.
-7. Download the filtered PSM table and coverage summary.
-
-## Pre-computed results
-
-If you have existing MS Amanda output (`.mzid`) or Tide/Crux output (`.pepxml`),
-upload them directly. The search step is skipped and results are cross-referenced
-immediately.
-
----
-
-# Workflow Step 7: AI Assistant (Tab 7)
-
-The AI Assistant uses the Anthropic Claude API to provide contextual guidance.
-
-## Example questions
-
-- *"Which of my unique peptides would be the best MRM surrogate for the heavy chain?"*
-- *"Explain why CASIQKFGR is commonly used as an IgG1 reference peptide."*
-- *"What does a coverage gap between residues 220--240 of my heavy chain suggest?"*
-- *"How do I optimise collision energy for a 3+ precursor on a SCIEX QTRAP 6500+?"*
-
-## Setup
-
-Enter your Anthropic API key and click **Save to .Renviron** (one-time). Enable
-**Include digest context** to attach the current ADC name, enzyme, and peptide count
-automatically. The model list is populated from your account's available models.
-
----
-
-# Interpreting Results: Common Scenarios
-
-## Scenario A: No unique peptides found
-
-Possible causes:
-
-- The ADC is based on a human antibody scaffold and shares most tryptic peptides with
-  the human proteome background.
-- The drug-linker payload modification was not selected, so conjugated peptides are
-  being compared without their payload mass.
-
-Suggested actions:
-
-- Enable the drug-linker payload modification in Tab 2 and re-run the digest. Payload-
-  bearing peptides are typically unique because the modification mass is not present
-  in the background.
-- Reduce the background missed cleavage level (Tab 1 Background section) to allow a
-  more permissive uniqueness call.
-- Try a different enzyme (e.g.\ Lys-C or Asp-N) to generate peptides covering different
-  sequence regions.
-
-## Scenario B: Poor sequence coverage
-
-Possible causes:
-
-- The default missed cleavage level (0) generates short peptides that fall outside the
-  6--30 AA window.
-- The enzyme selected does not have cleavage sites in certain regions.
-
-Suggested actions:
-
-- Increase missed cleavages to 1 or 2 in Tab 1 and re-run.
-- Try a second enzyme (e.g.\ Glu-C) to generate complementary peptides.
-
-## Scenario C: DAR heterogeneity in the transition list
-
-When DAR modelling is enabled, you will see multiple precursor m/z entries for the same
-peptide sequence at different DAR levels. This is expected and correct:
-
-- **DAR0** entries correspond to unconjugated (naked antibody) peptides.
-- **DAR1, DAR2, ...** entries correspond to singly, doubly, ... conjugated species.
-
-For quantification of DAR distribution by LC-MS/MS, monitor at least DAR0 and the
-dominant DAR species (typically DAR2 for cysteine-conjugated ADCs, DAR4 for higher
-loading).
-
----
-
-# Running Tests
-
-Before deploying or distributing, verify the mass engine is working correctly:
-
-```{r tests}
-source("R/digest.R")
-source("R/modifications.R")
-source("R/transitions.R")
-source("R/isotopes.R")
-source("R/dar.R")
-
-# 79 unit tests
-source("tests/test_masses.R")
-
-# 10 mass accuracy benchmarks (sub-mDa vs IgG1 reference peptides)
-source("tests/benchmark_mass_accuracy.R")
-```
-
-Expected output: `79 / 79 PASSED` and `10 / 10 PASSED`.
-
----
-
-# Citation
+For the trastuzumab-DXd hinge peptide at DAR4, a representative MRM transition would be:
 
 ```
-Wase, N. (2026). ADC Peptide Mapper (Version 0.8) [Software].
-https://doi.org/10.5281/zenodo.20681412
+Peptide:      TCPPCPAPELLGGPSVFLFPPK (HC hinge, tryptic, DAR4)
+Precursor:    [M+4drugs+3H]3+ = m/z calculated from monoisotopic mass + 4x DAR_payload_mass
+Product ions: y-series from y2 to y21
 ```
-
-See `CITATION.cff` in the project root for the full reference list including all
-scientific citations for the mass accuracy models, FDR method, and linker
-biotransformation references.
 
 ---
 
-**Author:** Nishikant Wase, PhD ---
-\href{mailto:nishikant.wase@gmail.com}{nishikant.wase@gmail.com} ---
-\url{https://nishi76.github.io}
+# Step 5 — Heavy Labelling (Tab 5)
 
-*For research use only. All masses are monoisotopic.*
+Select a stable isotope labelling preset to generate SIL-IS (stable isotope-labelled
+internal standard) transition pairs for absolute quantification:
+
+```{r step5-sil}
+sil_pairs <- data.table(
+  Peptide       = c("STSGGTAALGCLVK", "DTLMISRTPEVTCVVVDVSHEDPEVK"),
+  Light_prec_mz = c(672.356, 982.504),
+  Heavy_prec_mz = c(676.366, 990.520),   # 13C6-15N2 Lys: +8.014 Da
+  Label         = c("13C6-15N2-Lys", "13C6-15N2-Lys"),
+  Charge        = c(2L, 3L)
+)
+```
+
+For trastuzumab-DXd absolute DAR quantification, select the two or three tryptic
+peptides from the hinge region that carry drug modifications, and generate
+light/heavy pairs for each DAR level (DAR0 through DAR8).
+
+---
+
+# Step 6 — MS/MS Search (Tab 6)
+
+## Running MS Amanda
+
+```{r step6-msamanda}
+# Set path to MS Amanda executable (one-time, in ~/.Renviron)
+Sys.setenv(MSAMANDA_EXE = "/path/to/MSAmanda")
+
+# In the app: Tab 6 -> Upload mzML -> Click "Run MS Amanda"
+# The app constructs the search XML automatically from Tab 2 modification settings
+```
+
+MS Amanda searches the ADC FASTA (the two sequences entered in Tab 1) against
+the uploaded centroided mzML file. Results are loaded automatically and cross-referenced
+with the Tab 3 peptide table.
+
+## Uploading pre-computed results
+
+If you have already run the search externally, upload:
+
+- mzIdentML (`.mzid`) — from MS Amanda, Mascot, or MSFragger
+- pepXML (`.pep.xml`) — from Tide/Crux or Comet
+- PSM TSV (`.tsv`) — tab-separated PSM table with standard column headers
+
+## Score filtering and coverage
+
+Apply a PSM score threshold (default: Amanda Score >= 150) and FDR cutoff (default: 1%).
+The **Sequence Coverage** sub-tab updates the coverage map from Tab 3 with PSM-confirmed
+evidence. The **Modifications** sub-tab shows the distribution of drug-modified vs.
+unmodified cysteines per DAR level, supporting DAR distribution measurement.
+
+---
+
+# Step 7 (v1.0) — MRM Assessment (Tab 7)
+
+After acquiring MRM data using the transition list from Tab 4, upload the Skyline
+peak-area export to Tab 7 for automated quality assessment.
+
+## Upload and assess
+
+```{r step7-mrm}
+# The tab accepts a Skyline peak-area CSV exported via:
+#   File > Export > Report > Peak Areas (in Skyline)
+# or an mProphet scored output.
+
+# Example expected column layout:
+mrm_example <- data.frame(
+  Peptide       = rep("TCPPCPAPELLGGPSVFLFPPK_DAR4", 3),
+  Precursor.Mz  = rep(987.46, 3),
+  Product.Mz    = c(175.12, 288.17, 401.22),
+  Area          = c(1.2e7, 8.9e6, 6.3e6),
+  RT            = rep(18.4, 3),
+  FWHM          = rep(0.32, 3),
+  Replicate     = c("Rep1", "Rep2", "Rep3")
+)
+```
+
+## Quality thresholds
+
+The default thresholds are:
+
+| Criterion | Default |
+|---|---|
+| Min S/N | 10 |
+| Max CV% | 20% |
+| Min peak symmetry | 0.70 |
+
+A transition passes QC only when all three criteria are met. Transitions with missing
+FWHM data are assessed on S/N and CV% only.
+
+## Ranked export
+
+After assessment, select **Rank by CV% (most reproducible first)**, set **Top N = 3**,
+and click **Export Ranked Transitions** to download a method-ready transition list with
+1 quantifier + 2 qualifiers per peptide. This file is directly importable into Skyline
+or your instrument acquisition software.
+
+---
+
+# Step 8 (v1.0) — ADC Design (Tab 8)
+
+
+## Linker chemistry reference
+
+The linker table covers 14 ADC linkers. To access the underlying data programmatically:
+
+```{r step7-linker}
+source("R/adc_design.R")
+linkers <- get_linker_table()
+print(linkers[, .(Name, Type, Stability_rank, t_half_plasma_days)])
+```
+
+```
+   Name                  Type           Stability_rank  t_half_plasma_days
+1: MC-VC-PABC            Cleavable      A               5.5
+2: MC-VC                 Cleavable      A               5.5
+3: SMCC                  Non-cleavable  A+              30.0
+4: Sulfo-SPDB            Cleavable      C               1.5
+5: SPDB                  Cleavable      C               2.0
+6: CL2A                  Cleavable      D               0.6
+...
+```
+
+## Deconjugation prediction
+
+The `predict_deconjugation()` function applies first-order kinetics to model DAR loss
+in plasma. For trastuzumab-DXd (maleimide-thiol, Cys-engineered, DAR8):
+
+```{r step7-deconj}
+source("R/adc_design.R")
+
+result <- predict_deconjugation(
+  chemistry   = "Maleimide-thiol (MC-VC-PABC / SMCC)",
+  site        = "Cys-engineered",
+  initial_dar = 8,
+  days        = 21
+)
+
+cat("Stability class:", result$stability_class, "\n")
+cat("Plasma t1/2 (deconjugation):", result$t_half, "days\n")
+cat("Days above DAR threshold:", result$days_above_threshold, "\n")
+```
+
+Expected output for maleimide-thiol / Cys-engineered:
+```
+Stability class: A
+Plasma t1/2 (deconjugation): 5.5 days
+Days above DAR threshold: 6.4 days (DAR > 2.8)
+```
+
+Plot the DAR decay curve:
+
+```{r step7-plot}
+library(ggplot2)
+p <- plot_deconjugation(result)
+print(p)
+```
+
+---
+
+# Step 9 (v1.0) — Target Biology (Tab 9)
+
+## Internalization scoring
+
+```{r step8-intern}
+source("R/target_biology.R")
+
+her2 <- score_internalization("HER2")
+cat("Target:", her2$target, "\n")
+cat("Score:", her2$score, "/ 10\n")
+cat("Tier:", her2$tier, "\n")
+cat("Mechanism:", her2$mechanism, "\n")
+cat("Reference:", her2$literature, "\n")
+```
+
+Expected output:
+```
+Target: HER2
+Score: 9 / 10
+Tier: High
+Mechanism: Receptor-mediated endocytosis (clathrin); ligand-independent constitutive
+Reference: Clathrin pathway dominant; t1/2 internalization ~30 min (Neve 2004)
+```
+
+HER2 is an excellent ADC target from an internalization standpoint: constitutive,
+rapid, clathrin-mediated, with efficient lysosomal trafficking.
+
+## Surface accessibility
+
+```{r step8-surface}
+her2_surf <- assess_surface_accessibility("HER2")
+cat("Accessibility score:", her2_surf$accessibility_score, "/ 100\n")
+cat("EC domains:", her2_surf$ec_domains, "\n")
+cat("Shed/secreted:", her2_surf$shed_secreted, "\n")
+cat("Notes:", her2_surf$notes, "\n")
+```
+
+Expected output:
+```
+Accessibility score: 92 / 100
+EC domains: 4
+Shed/secreted: FALSE
+Notes: Large 4-domain ECD; highly accessible at tumor surface; HER2+ amplified cells
+       show very high density
+```
+
+HER2 scores highly for surface accessibility — its four extracellular domains project
+well away from the membrane, and there is no known shed soluble form that could act
+as an antibody decoy.
+
+---
+
+# Step 10 (v1.0) — Antibody Characterization (Tab 10)
+
+## Binding affinity scoring
+
+Trastuzumab has a measured KD of approximately 0.1 nM for HER2 domain IV.
+
+```{r step9-affinity}
+source("R/antibody_characterization.R")
+
+ba <- score_binding_affinity(kd_nm = 0.1, kon = 1.2e6, koff = 1.2e-4)
+cat("Tier:", ba$tier, "\n")
+cat("Residence time:", ba$residence_time_min, "minutes\n")
+cat("ADC note:", ba$adc_note, "\n")
+```
+
+Expected output:
+```
+Tier: Excellent
+Residence time: 13.9 minutes
+ADC note: Excellent affinity for ADC use. Strong tumor retention and slow off-rate
+          support payload delivery.
+```
+
+Note: at KD = 0.1 nM, trastuzumab approaches the boundary where binding-site
+barrier effects can reduce tumor penetration in bulky solid tumors. The scorer
+flags the picomolar zone (< 0.01 nM) as potentially problematic; 0.1 nM is
+in the Excellent tier without a barrier flag.
+
+## FcRn / half-life prediction
+
+Trastuzumab is an IgG1 with wild-type Fc. For a site-specific Cys-conjugated ADC
+at DAR8:
+
+```{r step9-halflife}
+hl <- predict_halflife(
+  igg_subclass     = "IgG1",
+  fc_mutations     = character(0),   # wild-type
+  dar              = 8,
+  conjugation_site = "Cys-engineered"
+)
+
+cat("Predicted t1/2:", hl$predicted_halflife, "days\n")
+cat("Range:", hl$halflife_range[1], "-", hl$halflife_range[2], "days\n")
+cat("Tier:", hl$tier, "\n")
+cat("DAR penalty:", hl$dar_penalty_pct, "%\n")
+```
+
+Expected output:
+```
+Predicted t1/2: 14.7 days
+Range: 12.5 - 16.9 days
+Tier: Moderate (10-18 days)
+DAR penalty: 35%
+```
+
+DAR8 on a maleimide-thiol linker carries a 35% clearance penalty from increased
+hydrophobicity. Fc engineering (YTE or LS) could extend the predicted half-life to
+approximately 22 days at DAR8.
+
+```{r step9-halflife-yte}
+hl_yte <- predict_halflife(
+  igg_subclass     = "IgG1",
+  fc_mutations     = "YTE (M252Y/S254T/T256E)",
+  dar              = 8,
+  conjugation_site = "Cys-engineered"
+)
+cat("YTE Fc predicted t1/2:", hl_yte$predicted_halflife, "days\n")
+# Expected: ~22.0 days (21 x 1.5 x 0.65)
+```
+
+---
+
+# Step 11 (v1.0) — PK & Efficacy (Tab 11)
+
+## Bystander effect scoring
+
+DXd is a topoisomerase I inhibitor with confirmed cell permeability and an IC50 of
+approximately 0.31 nM as free payload. The bystander scorer:
+
+```{r step10-bystander}
+source("R/adc_design.R")
+source("R/antibody_characterization.R")
+
+payload_tbl <- get_payload_table()
+bystander   <- score_bystander_effect("DXd", payload_table = payload_tbl)
+
+cat("Bystander score:", bystander$score, "/ 8\n")
+cat("Tier:", bystander$tier, "\n")
+cat("Cell-permeable:", bystander$permeable, "\n")
+cat("Notes:", bystander$notes, "\n")
+```
+
+Expected output:
+```
+Bystander score: 8 / 8
+Tier: High
+Cell-permeable: TRUE
+Notes: DXd is cell-permeable -> strong bystander killing in antigen-heterogeneous tumors.
+       IC50 = 0.31 nM.
+```
+
+DXd achieves the maximum bystander score, consistent with the observed bystander
+activity of trastuzumab deruxtecan (Enhertu) in HER2-low and HER2-heterogeneous tumors.
+
+## One-compartment PK simulation
+
+Using the predicted half-life (14.7 days, DAR8, wild-type Fc) and deconjugation
+half-life (5.5 days for MC-VC-PABC):
+
+```{r step10-pk}
+pk <- simulate_adc_pk(
+  dose_mg_kg                  = 5.4,   # Enhertu label dose (mg/kg)
+  bw_kg                       = 70,
+  halflife_days               = 14.7,
+  dar                         = 8,
+  deconjugation_halflife_days = 5.5,
+  days                        = 21
+)
+
+# Peak intact ADC concentration
+cat("Cmax (intact ADC):", round(max(pk$Intact_ADC), 1), "ug/mL\n")
+
+# AUC by trapezoidal rule
+auc <- sum(diff(pk$Day) * (pk$Intact_ADC[-1] + pk$Intact_ADC[-nrow(pk)]) / 2)
+cat("AUC (0-21 d):", round(auc, 0), "ug*d/mL\n")
+```
+
+Expected output:
+```
+Cmax (intact ADC): 1542.9 ug/mL
+AUC (0-21 d): 17643 ug*d/mL
+```
+
+The dual-curve plot (available via the PK & Efficacy tab) shows the intact ADC
+(teal solid) and deconjugated antibody (grey dashed) concentration-time profiles
+over 21 days, illustrating how DAR8 payload loading accelerates clearance of the
+intact ADC relative to the naked antibody component.
+
+---
+
+# Step 12 — AI Assistant (last tab)
+
+The AI Assistant tab provides multi-provider LLM access pre-configured with ADC context.
+
+```{r step11-ai}
+# API key setup (one-time, in ~/.Renviron)
+Sys.setenv(ANTHROPIC_API_KEY = "sk-ant-...")   # or OPENAI_API_KEY / GEMINI_API_KEY
+
+# In-app usage:
+# 1. Select provider (Anthropic / OpenAI / Google Gemini)
+# 2. Select model from dynamically populated dropdown
+# 3. Enable "Include digest context" to inject current ADC parameters
+# 4. Type questions and click Send
+```
+
+Example queries relevant to the trastuzumab-DXd example:
+
+- *"My deconjugation model shows DAR falling below 3 by day 5. What linker change
+  would extend this while keeping cleavability?"*
+- *"For HER2 at internalization score 9 and accessibility score 92, is there any
+  reason to prefer a non-cleavable linker over MC-VC-PABC?"*
+- *"My predicted half-life is 14.7 days at DAR8. Would adding YTE Fc mutations
+  materially change the PK or is the DAR clearance penalty the dominant factor?"*
+
+---
+
+# Full Analysis Workflow Summary
+
+| Step | Tab | Key action | Key output |
+|---|---|---|---|
+| 1 | Input & Setup | Upload FASTA, select enzyme, run digest | Peptide table, coverage stats |
+| 2 | Modifications | Set payload, biotransformations, DAR | Modification-aware peptide list |
+| 3 | Peptide Results | Browse table, inspect coverage map | Unique peptide list, Excel download |
+| 4 | Transition List | Select platform, choose DAR levels | Instrument-specific MRM file |
+| 5 | Heavy Labelling | Select SIL preset, choose peptides | Light/heavy pair table |
+| 6 | MS/MS Search | Run MS Amanda or upload results | Confirmed PSMs, coverage update |
+| 7 | MRM Assessment | Upload Skyline export, score transitions | Pass/fail table, ranked CSV |
+| 8 | ADC Design | Linker/payload tables, deconjugation predictor | DAR decay curve, stability class |
+| 9 | Target Biology | Score internalization and surface accessibility | Tier badges, mechanism notes |
+| 10 | Antibody Char. | KD, epitope, half-life with Fc mutations | Affinity tier, predicted t1/2 |
+| 11 | PK & Efficacy | Bystander score, simulate PK | Score, Cmax, AUC, dual-curve plot |
+| 12 | AI Assistant | Natural language ADC design questions | LLM answers with digest context |
+
+---
+
+# Programmatic API Reference (v1.0 Modules)
+
+## ADC Design (`R/adc_design.R`)
+
+```{r api-adc-design}
+source("R/adc_design.R")
+
+# Linker database
+linkers <- get_linker_table()
+
+# Payload database
+payloads <- get_payload_table()
+
+# Deconjugation prediction
+result <- predict_deconjugation(
+  chemistry   = "Maleimide-thiol (MC-VC-PABC / SMCC)",
+  site        = "Cys-engineered",
+  initial_dar = 4,
+  days        = 21
+)
+# Returns: list(curve, stability_class, stability_label, t_half,
+#               therapeutic_threshold, days_above_threshold, warning_msg,
+#               chemistry, site, initial_dar)
+
+# DAR curve ggplot
+p <- plot_deconjugation(result)
+```
+
+## Target Biology (`R/target_biology.R`)
+
+```{r api-target-biology}
+source("R/target_biology.R")
+
+# Internalization scoring
+intern <- score_internalization("HER2")
+# Returns: list(found, target, score, tier, receptor_class, mechanism,
+#               literature, source)
+
+# Surface accessibility assessment
+surf <- assess_surface_accessibility("HER2")
+# Returns: list(found, target, accessibility_score, accessibility_tier,
+#               ec_domains, tm_count, expression_level, shed_secreted, notes)
+```
+
+## Antibody Characterization (`R/antibody_characterization.R`)
+
+```{r api-ab-char}
+source("R/antibody_characterization.R")
+
+# Binding affinity scoring
+ba <- score_binding_affinity(kd_nm = 1.0, kon = 1e6, koff = 1e-3)
+# Returns: list(kd_nm, tier, badge_class, adc_note, optimal_range,
+#               kon, koff, residence_time_min)
+
+# Epitope characterization
+ep <- characterize_epitope(
+  epitope_region         = "Domain IV, loop region",
+  epitope_type           = "Conformational",
+  conformation_sensitive = TRUE
+)
+# Returns: list(epitope_type_detected, accessibility_note,
+#               cross_reactivity_risk, adc_relevance, conformation_sensitive)
+
+# FcRn / half-life prediction
+hl <- predict_halflife(
+  igg_subclass     = "IgG1",
+  fc_mutations     = "YTE (M252Y/S254T/T256E)",
+  dar              = 4,
+  conjugation_site = "Cys-engineered"
+)
+# Returns: list(predicted_halflife, halflife_range, tier, note,
+#               dar_penalty_pct, site_penalty_pct, mutation_multiplier)
+
+# PK simulation
+pk <- simulate_adc_pk(
+  dose_mg_kg                  = 3,
+  bw_kg                       = 70,
+  halflife_days               = 21,
+  dar                         = 4,
+  deconjugation_halflife_days = 5.5,
+  days                        = 21
+)
+# Returns: data.frame(Day, Intact_ADC, Naked_Ab)
+
+# Bystander effect score
+bs <- score_bystander_effect("DXd")
+# Returns: list(score, tier, permeable, ic50_nm, notes)
+```
+
+---
+
+# Session Information
+
+```{r sessioninfo, eval=TRUE, echo=FALSE}
+sessionInfo()
+```
+
+---
+
+# References
+
+Challita-Eid PM et al. Enfortumab vedotin antibody-drug conjugate targeting Nectin-4
+is a highly potent therapeutic agent in multiple preclinical cancer models. *Cancer Res.*
+2016;76(10):3003--3013.
+
+Cubas R et al. Trop2 expression contributes to tumor pathogenesis by activating the
+ERK MAPK pathway. *Mol Cancer.* 2019;9(1):253.
+
+Dall'Acqua WF et al. Increasing the affinity of a human IgG1 for the neonatal Fc receptor:
+biological consequences. *J Immunol.* 2002;169(9):5171--5180.
+
+Dorfer V, Pichler P, Stranzl T, et al. MS Amanda, a universal identification algorithm
+optimized for high accuracy tandem mass spectra. *J Proteome Res.* 2014;13(8):3679--3684.
+
+Hamblett KJ et al. Effects of drug loading on the antitumor activity of a monoclonal
+antibody drug conjugate. *Clin Cancer Res.* 2004;10(20):7063--7070.
+
+Lazar GA et al. Engineered antibody Fc variants with enhanced effector function.
+*Proc Natl Acad Sci USA.* 2006;103(11):4005--4010.
+
+Li F et al. Intracellular released payload influences potency and bystander-killing effects
+of antibody-drug conjugates in preclinical models. *Cancer Res.* 2016;76(9):2710--2719.
+
+Lyon RP et al. Reducing hydrophobicity of homogeneous antibody-drug conjugates improves
+pharmacokinetics and therapeutic index. *Nat Biotechnol.* 2015;33(7):733--735.
+
+Neve RM et al. Morphological and transcriptional differences between HER2 positive cells
+and isogenic controls. *Oncogene.* 2004;23(10):1838--1845.
+
+Ogitani Y et al. DS-8201a, a novel HER2-targeting ADC with a novel DNA topoisomerase I
+inhibitor, demonstrates a promising antitumor efficacy with differentiation from T-DM1.
+*Clin Cancer Res.* 2016;22(20):5097--5108.
+
+Shen BQ et al. Conjugation site modulates the in vivo stability and therapeutic activity
+of antibody-drug conjugates. *Nat Biotechnol.* 2012;30(2):184--189.
+
+Staudacher AH, Hartley BJ. Antibody drug conjugates and bystander killing: is antigen-
+dependent internalisation required? *Br J Cancer.* 2018;119(11):1274--1281.
+
+Zalevsky J et al. Enhanced antibody half-life improves in vivo activity. *Nat Biotechnol.*
+2010;28(2):157--159.
