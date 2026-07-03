@@ -227,7 +227,7 @@ ui <- bs4DashPage(
       tags$link(rel = "preconnect", href = "https://fonts.googleapis.com"),
       tags$link(rel = "preconnect", href = "https://fonts.gstatic.com", crossorigin = NA),
       tags$link(rel = "stylesheet",
-        href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"),
+        href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,700;1,600&display=swap"),
       tags$link(rel = "stylesheet", type = "text/css", href = "custom.css")
     ),
 
@@ -264,11 +264,11 @@ ui <- bs4DashPage(
             uiOutput("digest_status_ui"),
             hr(),
             div(class = "well", style = "background:#f0f7ff; border:1px solid #b8d4f0; border-radius:6px; padding:10px 14px; margin-top:8px; font-size:12px; color:#2c5f8a;",
-              icon("robot"), tags$b(" AI Assistant (Tab 7)"),
+              icon("robot"), tags$b(" AI Assistant"),
               tags$p(style = "margin:6px 0 4px 0;",
                 "This app includes an AI assistant for questions about your digest results, DAR modeling, transition selection, and LC-MS/MS method development."),
               tags$p(style = "margin:0;",
-                "A limited number of free messages are available per session on the hosted app. For unlimited use, supply your own API key in Tab 7 — ",
+                "A limited number of free messages are available per session on the hosted app. For unlimited use, supply your own API key in the AI Assistant tab — ",
                 tags$a("Anthropic", href = "https://console.anthropic.com/", target = "_blank"), ", ",
                 tags$a("OpenAI", href = "https://platform.openai.com/api-keys", target = "_blank"), ", or ",
                 tags$a("Google Gemini", href = "https://aistudio.google.com/app/apikey", target = "_blank"),
@@ -886,6 +886,16 @@ ui <- bs4DashPage(
 
       # ── Tab: ADC Design ─────────────────────────────────────────────────────
       bs4TabItem(tabName = "tab_adc_design",
+        div(class = "tab-header",
+          div(class = "stage-chip",
+            span(class = "stage-num", "STAGE_08"),
+            span(class = "stage-name", "ADC_DESIGN")
+          ),
+          div(class = "tab-title", "ADC Design Suite"),
+          p(class = "tab-subtitle",
+            "Curated linker chemistry reference, cytotoxic payload database with IC₅₀ profiles, ",
+            "and rule-based deconjugation prediction with DAR decay modeling.")
+        ),
         fluidRow(
           column(12,
             tabsetPanel(id = "adc_design_tabs",
@@ -987,6 +997,16 @@ ui <- bs4DashPage(
 
       # ── Tab: Target Biology ─────────────────────────────────────────────────
       bs4TabItem(tabName = "tab_target_bio",
+        div(class = "tab-header",
+          div(class = "stage-chip",
+            span(class = "stage-num", "STAGE_09"),
+            span(class = "stage-name", "TARGET_BIOLOGY")
+          ),
+          div(class = "tab-title", "Target Biology Assessment"),
+          p(class = "tab-subtitle",
+            "Score receptor internalization potential and cell-surface accessibility for 40+ validated ADC targets ",
+            "using a curated rule-based engine covering receptor class, endocytic mechanism, and expression level.")
+        ),
         fluidRow(
           column(12,
             tabsetPanel(id = "target_bio_tabs",
@@ -1054,6 +1074,16 @@ ui <- bs4DashPage(
 
       # ── Tab: Antibody Characterization ──────────────────────────────────────
       bs4TabItem(tabName = "tab_ab_char",
+        div(class = "tab-header",
+          div(class = "stage-chip",
+            span(class = "stage-num", "STAGE_10"),
+            span(class = "stage-name", "ANTIBODY_CHAR")
+          ),
+          div(class = "tab-title", "Antibody Characterization"),
+          p(class = "tab-subtitle",
+            "Binding affinity scoring with ADC-specific guidance, epitope classification, and FcRn-based ",
+            "half-life prediction incorporating Fc engineering mutations and payload conjugation penalties.")
+        ),
         fluidRow(
           column(12,
             tabsetPanel(id = "ab_char_tabs",
@@ -1160,6 +1190,16 @@ ui <- bs4DashPage(
 
       # ── Tab: PK & Efficacy ──────────────────────────────────────────────────
       bs4TabItem(tabName = "tab_pk",
+        div(class = "tab-header",
+          div(class = "stage-chip",
+            span(class = "stage-num", "STAGE_11"),
+            span(class = "stage-name", "PK_EFFICACY")
+          ),
+          div(class = "tab-title", "Pharmacokinetics & Efficacy Modeling"),
+          p(class = "tab-subtitle",
+            "Score payload-dependent bystander killing potential and simulate one-compartment ADC PK ",
+            "with DAR-corrected intact ADC and deconjugated antibody concentration-time profiles.")
+        ),
         fluidRow(
           column(12,
             tabsetPanel(id = "pk_tabs",
@@ -1254,7 +1294,7 @@ server <- function(input, output, session) {
     heavy_done    = FALSE,
     dar_dt        = NULL,    # T3-A: DAR transition table
     dar_done      = FALSE,
-    # ── AI Assistant (Tab 7) ───────────────────────────────────────────────
+    # ── AI Assistant ───────────────────────────────────────────────────────
     chat_history  = list(),  # list of list(role, content) — Anthropic messages format
     ai_thinking   = FALSE,   # TRUE while API call in flight
     ai_total_tokens = 0L,   # cumulative token usage this session
@@ -3262,7 +3302,7 @@ for a detailed explanation. If asked for a table, use markdown table format.",
     if (no_server_key && rv$ai_msg_count >= AI_MSG_LIMIT) {
       showNotification(
         paste0("Session limit of ", AI_MSG_LIMIT, " messages reached. ",
-               "Enter your own API key in Tab 7 to continue without limits."),
+               "Enter your own API key in the AI Assistant tab to continue without limits."),
         type = "warning", duration = 8)
       return()
     }
