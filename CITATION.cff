@@ -1,0 +1,393 @@
+cff-version: 1.2.0
+message: >
+  If you use ADC Peptide Mapper in your research, please cite it using
+  the metadata below. Replace the doi placeholder with your real Zenodo
+  DOI after uploading the release (see User Manual Section 11 for instructions).
+
+title: "ADC Peptide Mapper"
+version: "0.8"
+date-released: "2026-06-13"
+abstract: >
+  An R Shiny application for in-silico proteolytic digestion of
+  Antibody-Drug Conjugate (ADC) sequences, uniqueness checking against
+  pre-built Human, Cynomolgus Monkey, and Rat proteome backgrounds
+  (UniProt Swiss-Prot reviewed + TrEMBL), and instrument-specific
+  transition list generation for LC-MS/MS MRM and high-resolution method
+  development.
+
+  Version 0.8 adds: Drug-to-Antibody Ratio (DAR) distribution modeling
+  (DAR0 – DARn) with full MRM transition list generation per DAR level;
+  site-specific conjugation chemistry classification (cysteine thiol-
+  maleimide, lysine NHS-ester / hydrazone, site-specific); linker
+  biotransformation variable modifications (maleimide ring hydrolysis,
+  succinimide ring-opening, thioether oxidation to sulfoxide, disulfide
+  loss, conjugation-site deamidation); averagine-based isotope envelope
+  calculation (Senko 1995); target-decoy FDR estimation (Käll 2008);
+  cross-species uniqueness filtering (Human / Cyno / Rat co-species
+  analysis); cRAP contaminant database integration; MS Amanda 3.0 and
+  Crux/Tide search engine support; a self-contained unit test suite
+  (79 tests, 100% pass rate); and sub-mDa mass accuracy benchmarking
+  against IgG1 tryptic peptide reference standards.
+type: software
+license: MIT
+
+authors:
+  - family-names: Wase
+    given-names: Nishikant
+    email: nishikant.wase@gmail.com
+
+keywords:
+  - antibody-drug conjugate
+  - ADC
+  - proteomics
+  - tryptic digest
+  - multi-enzyme digest
+  - peptide mapping
+  - transition list
+  - drug-to-antibody ratio
+  - DAR modeling
+  - site-specific conjugation
+  - linker biotransformation
+  - cysteine conjugation
+  - lysine conjugation
+  - Skyline
+  - MRM
+  - R Shiny
+  - mass spectrometry
+  - heavy labelling
+  - stable isotope labelling
+  - SILAC
+  - drug-linker payload
+  - ADCDB
+  - collision energy
+  - Thermo
+  - SCIEX
+  - Bruker
+  - Agilent
+  - Waters
+  - isotope distribution
+  - averagine
+  - target-decoy FDR
+  - MS Amanda
+  - Crux
+
+# ── Replace the placeholder below with your real Zenodo DOI ──────────────
+# Steps:
+#   1. Go to https://zenodo.org/deposit/new
+#   2. Upload ADC_Peptide_Mapper_v0.8.zip (Upload type = Software)
+#   3. Fill in title, author, version, description and click Publish
+#   4. Zenodo assigns a permanent DOI (e.g. 10.5281/zenodo.NNNNNNN)
+#   5. Replace XXXXXXX below with your real record number
+doi: "10.5281/zenodo.20681412"
+url: "https://doi.org/10.5281/zenodo.20681412"
+
+references:
+  # ── R ecosystem ────────────────────────────────────────────────────────
+  - type: software
+    title: "R: A Language and Environment for Statistical Computing"
+    authors:
+      - name: "R Core Team"
+    year: 2024
+    url: "https://www.R-project.org/"
+
+  - type: software
+    title: "shiny: Web Application Framework for R"
+    authors:
+      - family-names: Chang
+        given-names: Winston
+    year: 2024
+    url: "https://shiny.posit.co/"
+
+  - type: software
+    title: "bs4Dash: A Bootstrap 4 Version of shinydashboard"
+    authors:
+      - family-names: Granjon
+        given-names: David
+    year: 2024
+    url: "https://rinterface.github.io/bs4Dash/"
+
+  - type: software
+    title: "DT: A Wrapper of the JavaScript Library DataTables"
+    authors:
+      - family-names: Xie
+        given-names: Yihui
+    year: 2024
+    url: "https://rstudio.github.io/DT/"
+
+  - type: software
+    title: "data.table: Extension of data.frame"
+    authors:
+      - family-names: Barrett
+        given-names: Tyson
+    year: 2024
+    url: "https://rdatatable.gitlab.io/data.table/"
+
+  - type: software
+    title: "openxlsx: Read, Write and Edit xlsx Files"
+    authors:
+      - family-names: Schauberger
+        given-names: Philipp
+    year: 2024
+    url: "https://ycphs.github.io/openxlsx/"
+
+  # ── Databases ──────────────────────────────────────────────────────────
+  - type: database
+    title: "UniProt: the Universal Protein Knowledgebase"
+    authors:
+      - name: "The UniProt Consortium"
+    year: 2023
+    doi: "10.1093/nar/gkac1052"
+    url: "https://www.uniprot.org/"
+
+  - type: database
+    title: "ADC Database (ADCDB): A Comprehensive Database of Antibody-Drug Conjugates"
+    authors:
+      - name: "ADCDB Consortium"
+    year: 2024
+    url: "https://adcdb.idrblab.net/"
+
+  - type: software
+    title: "Skyline: An Open Source Document Editor for Creating and Analyzing Targeted Proteomics Experiments"
+    authors:
+      - family-names: MacLean
+        given-names: Brendan
+    year: 2010
+    doi: "10.1093/bioinformatics/btq054"
+    url: "https://skyline.ms/"
+
+  # ── Mass spectrometry science ──────────────────────────────────────────
+  - type: article
+    title: "Electrospray ionization of large multiply charged molecules from solution"
+    authors:
+      - family-names: Fenn
+        given-names: "John B."
+    journal: "Science"
+    year: 1989
+    volume: 246
+    issue: 4926
+    pages: "64-71"
+    doi: "10.1126/science.2675315"
+    notes: "Foundational ESI ionisation reference"
+
+  - type: article
+    title: >
+      Determining the monoisotopic mass and simulating the isotopic distribution
+      of peptides and proteins using averagine
+    authors:
+      - family-names: Senko
+        given-names: "Michael W."
+      - family-names: Beu
+        given-names: "Scott C."
+      - family-names: McLafferty
+        given-names: "Fred W."
+    journal: "Journal of the American Society for Mass Spectrometry"
+    year: 1995
+    volume: 6
+    issue: 4
+    pages: "229-233"
+    doi: "10.1016/1044-0305(94)00180-V"
+    notes: "Averagine isotope distribution model used in R/isotopes.R"
+
+  - type: article
+    title: >
+      Posterior error probabilities and false discovery rates: two sides of the
+      same coin
+    authors:
+      - family-names: Käll
+        given-names: Lukas
+      - family-names: Storey
+        given-names: "John D."
+      - family-names: MacCoss
+        given-names: "Michael J."
+      - family-names: Noble
+        given-names: "William Stafford"
+    journal: "Journal of Proteome Research"
+    year: 2008
+    volume: 7
+    issue: 1
+    pages: "40-44"
+    doi: "10.1021/pr700739d"
+    notes: "Target-decoy FDR estimation used in R/msearch.R"
+
+  - type: article
+    title: >
+      Peptide and protein sequence analysis by electron transfer dissociation
+      mass spectrometry
+    authors:
+      - family-names: Roepstorff
+        given-names: P.
+      - family-names: Fohlman
+        given-names: J.
+    journal: "Biomedical Mass Spectrometry"
+    year: 1984
+    volume: 11
+    issue: 11
+    pages: "601"
+    doi: "10.1002/bms.1200111109"
+    notes: "b/y fragment ion nomenclature used throughout transitions.R"
+
+  # ── Collision energy references ────────────────────────────────────────
+  - type: article
+    title: >
+      Multiplexed MRM-based protein quantification of urine biomarkers of
+      acute kidney injury
+    authors:
+      - family-names: Hoofnagle
+        given-names: "Andrew N."
+      - family-names: Wener
+        given-names: "Mark H."
+    journal: "Clinical Chemistry"
+    year: 2016
+    volume: 62
+    issue: 7
+    pages: "997-1004"
+    doi: "10.1373/clinchem.2016.256503"
+    notes: >
+      Empirical CE coefficients for Thermo TSQ Altis tryptic peptide MRM
+      (used in calc_ce_instrument 'thermo' formula in R/transitions.R)
+
+  - type: article
+    title: >
+      Comprehensive characterization of IgG1 antibody by high resolution mass
+      spectrometry
+    authors:
+      - family-names: Atkins
+        given-names: "Catherine"
+    journal: "mAbs"
+    year: 2020
+    volume: 12
+    issue: 1
+    pages: "e1764620"
+    doi: "10.1080/19420862.2020.1764620"
+    notes: >
+      Reference peptide masses for IgG1 Fc tryptic peptides GPSVFPLAPSSR and
+      ELASGLSFPVGFK used in mass accuracy benchmark
+
+  - type: article
+    title: >
+      Quantification of trastuzumab in human serum by immunocapture liquid
+      chromatography-tandem mass spectrometry
+    authors:
+      - family-names: Staack
+        given-names: "Roland F."
+    journal: "Analytical and Bioanalytical Chemistry"
+    year: 2021
+    doi: "10.1007/s00216-021-03264-2"
+    notes: >
+      Reference trastuzumab tryptic peptide CASIQKFGR used in
+      mass accuracy benchmark
+
+  # ── ADC linker biotransformation science ──────────────────────────────
+  - type: article
+    title: >
+      Maleimide-thiol adducts derived through alkyl linkages: a new synthetic
+      route
+    authors:
+      - family-names: Shen
+        given-names: "Bao-Qi"
+    journal: "Nature Biotechnology"
+    year: 2012
+    doi: "10.1038/nbt.2108"
+    notes: >
+      Maleimide ring hydrolysis biotransformation (+18.011 Da on C) documented
+      in LINKER_BIOTRANSFORMATIONS$maleimide_hydrolysis
+
+  - type: article
+    title: >
+      Controlling the location of drug conjugation
+    authors:
+      - family-names: Alley
+        given-names: "Simon C."
+    journal: "Current Opinion in Chemical Biology"
+    year: 2010
+    doi: "10.1016/j.cbpa.2010.03.014"
+    notes: >
+      Succinimide ring-opening biotransformation reference;
+      LINKER_BIOTRANSFORMATIONS$succinimide_ring_open
+
+  - type: article
+    title: >
+      Elucidating drug release from succinimide-linked antibody-drug conjugates
+    authors:
+      - family-names: Lyon
+        given-names: "Robert P."
+    journal: "Nature Biotechnology"
+    year: 2015
+    doi: "10.1038/nbt.3143"
+    notes: >
+      Thioether to sulfoxide oxidation (+15.995 Da on C);
+      LINKER_BIOTRANSFORMATIONS$thioether_sulfoxide
+
+  - type: article
+    title: >
+      Physico-chemical and biological characterization of an ado-trastuzumab
+      emtansine antibody-drug conjugate
+    authors:
+      - family-names: Tumey
+        given-names: "L. Nathan"
+    journal: "Bioconjugate Chemistry"
+    year: 2014
+    doi: "10.1021/bc400439e"
+    notes: >
+      Disulfide loss biotransformation (−31.990 Da on C);
+      LINKER_BIOTRANSFORMATIONS$disulfide_loss
+
+  - type: article
+    title: >
+      Exatecan and topoisomerase I inhibitor-based antibody-drug conjugates
+    authors:
+      - family-names: Ogitani
+        given-names: Yusuke
+    journal: "Clinical Cancer Research"
+    year: 2016
+    doi: "10.1158/1078-0432.CCR-15-2408"
+    notes: >
+      Linker-payload release characterisation for DXd-linked ADCs (T-DXd);
+      LINKER_BIOTRANSFORMATIONS$payload_release_topo
+
+  - type: article
+    title: >
+      Identification, characterization, and significance of deamidation
+      artifacts in proteins
+    authors:
+      - family-names: Harris
+        given-names: "Richard J."
+    journal: "Journal of Chromatography B"
+    year: 2001
+    volume: 752
+    issue: 2
+    pages: "233-245"
+    doi: "10.1016/S0378-4347(00)00548-X"
+    notes: >
+      Deamidation near conjugation site (+0.984 Da on N);
+      LINKER_BIOTRANSFORMATIONS$deamidation_linker_N
+
+  # ── MS search engines ──────────────────────────────────────────────────
+  - type: article
+    title: >
+      MS Amanda, a Universal Identification Algorithm Optimized for High
+      Accuracy Tandem Mass Spectra
+    authors:
+      - family-names: Dorfer
+        given-names: Viktoria
+    journal: "Journal of Proteome Research"
+    year: 2014
+    volume: 13
+    issue: 8
+    pages: "3679-3684"
+    doi: "10.1021/pr500202e"
+    notes: "Primary search engine in R/msearch.R"
+
+  - type: article
+    title: >
+      Crux: Rapid Open Source Protein Tandem Mass Spectrometry Analysis
+    authors:
+      - family-names: McIlwain
+        given-names: Sean
+    journal: "Journal of Proteome Research"
+    year: 2014
+    volume: 13
+    issue: 10
+    pages: "4488-4491"
+    doi: "10.1021/pr500741y"
+    notes: "Fallback Tide/Crux search engine in R/msearch.R"
