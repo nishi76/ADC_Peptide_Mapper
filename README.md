@@ -4,7 +4,7 @@
 
 **R Shiny application** — In-silico proteolytic digest, uniqueness checking, DAR distribution modeling, linker biotransformation variable modifications, instrument-specific transition list export, heavy labelling, MS/MS search confirmation, and an AI assistant for Antibody-Drug Conjugates.
 
-**Live app:** https://nishiw.shinyapps.io/ADC_Peptide_Mapper/
+**Live app:** https://nishiw-adc-peptide-mapper.share.connect.posit.cloud/
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20681412.svg)](https://doi.org/10.5281/zenodo.20681412)
