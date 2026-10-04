@@ -1,8 +1,31 @@
-# antibody_characterization.R  —  ADC Peptide Mapper v1.0
+# antibody_characterization.R  -  ADC Peptide Mapper v1.0
 # Binding affinity scoring, epitope mapping, FcRn / half-life prediction
 
-# ── Binding affinity scoring ──────────────────────────────────────────────────
+# -- Binding affinity scoring --------------------------------------------------
 
+#' Score antibody binding affinity for ADC suitability
+#'
+#' @description Classifies an antibody's binding affinity (KD) into tiers
+#'   (Exceptional / Excellent / Good / Borderline / Poor) and returns an ADC-
+#'   specific interpretation including the binding-site barrier risk at
+#'   picomolar affinities and an optimal KD range recommendation.
+#'
+#' @param kd_nm numeric(1). Equilibrium dissociation constant in nM.
+#' @param kon numeric(1) or NA. Association rate constant (M\eqn{^{-1}}s\eqn{^{-1}}).
+#'   Used to derive \code{koff} if \code{koff} is \code{NA}.
+#' @param koff numeric(1) or NA. Dissociation rate constant (s\eqn{^{-1}}).
+#'   If both \code{kon} and \code{kd_nm} are provided, \code{koff} is
+#'   computed as \code{kd_nm * 1e-9 * kon}.
+#'
+#' @return Named list with: \code{kd_nm}, \code{tier} (character),
+#'   \code{badge_class} (CSS class for UI), \code{adc_note} (character),
+#'   \code{optimal_range} (character), \code{kon}, \code{koff},
+#'   \code{residence_time_min} (numeric or NA).
+#'
+#' @export
+#' @examples
+#' score_binding_affinity(kd_nm = 2.5)
+#' score_binding_affinity(kd_nm = 0.005, kon = 2e6)
 score_binding_affinity <- function(kd_nm, kon = NA, koff = NA) {
   tier <- if (kd_nm < 0.01) "Exceptional (picomolar)"
           else if (kd_nm < 1)   "Excellent"
@@ -26,7 +49,7 @@ score_binding_affinity <- function(kd_nm, kon = NA, koff = NA) {
   else
     "KD > 100 nM is typically insufficient for ADC applications. Affinity maturation strongly recommended."
 
-  optimal_range <- "1–10 nM KD is generally optimal for solid tumor ADCs. Hematologic malignancy ADCs can tolerate 0.1–1 nM with lower binding-site barrier risk."
+  optimal_range <- "1-10 nM KD is generally optimal for solid tumor ADCs. Hematologic malignancy ADCs can tolerate 0.1-1 nM with lower binding-site barrier risk."
 
   derived_koff <- if (!is.na(kon) && !is.na(kd_nm)) kd_nm * 1e-9 * kon else koff
 
@@ -43,8 +66,32 @@ score_binding_affinity <- function(kd_nm, kon = NA, koff = NA) {
   )
 }
 
-# ── Epitope characterization ──────────────────────────────────────────────────
+# -- Epitope characterization --------------------------------------------------
 
+#' Characterize an antibody epitope for ADC drug discovery
+#'
+#' @description Classifies an epitope as linear, conformational, or glycan-
+#'   dependent and returns ADC-relevant notes on accessibility, cross-reactivity
+#'   risk, lysosomal stability, and assay compatibility.
+#'
+#' @param epitope_region character(1). Description of the epitope region
+#'   (e.g. \code{"Domain II of HER2 ECD"}).
+#' @param epitope_type character(1). Epitope type classification string.
+#'   Accepts free text; detected via keywords (\code{"linear"},
+#'   \code{"conformational"}, \code{"glycan"}, etc.). Default \code{"Unknown"}.
+#' @param epitope_length numeric(1) or NA. Epitope length in amino acids.
+#'   Informational only. Default \code{NA}.
+#' @param conformation_sensitive logical(1). Override flag: \code{TRUE}
+#'   classifies as conformational when keyword detection is ambiguous.
+#'   Default \code{FALSE}.
+#'
+#' @return Named list with: \code{epitope_region}, \code{epitope_type_detected}
+#'   (character), \code{accessibility_note}, \code{cross_reactivity_risk},
+#'   \code{adc_relevance}, \code{conformation_sensitive}.
+#'
+#' @export
+#' @examples
+#' characterize_epitope("Domain II HER2", epitope_type = "conformational")
 characterize_epitope <- function(epitope_region, epitope_type = "Unknown",
                                   epitope_length = NA, conformation_sensitive = FALSE) {
   type_clean <- tolower(trimws(epitope_type))
@@ -68,11 +115,11 @@ characterize_epitope <- function(epitope_region, epitope_type = "Unknown",
     "Epitope type undetermined."
 
   cross_reactivity_risk <- if (is_conformational)
-    "Moderate — conformational epitopes are often more target-specific but may cross-react with homologous folded domains."
+    "Moderate - conformational epitopes are often more target-specific but may cross-react with homologous folded domains."
   else if (is_linear)
-    "Low-to-moderate — linear epitopes may cross-react with sequence homologs. BLAST the epitope sequence against the human proteome."
+    "Low-to-moderate - linear epitopes may cross-react with sequence homologs. BLAST the epitope sequence against the human proteome."
   else
-    "Unknown — characterize with mutagenesis or peptide scanning."
+    "Unknown - characterize with mutagenesis or peptide scanning."
 
   adc_relevance <- if (is_conformational)
     "Conformational epitopes can be retained after receptor internalization and lysosomal trafficking. Generally favorable for ADC targeting."
@@ -93,7 +140,7 @@ characterize_epitope <- function(epitope_region, epitope_type = "Unknown",
   )
 }
 
-# ── FcRn binding / antibody half-life prediction ──────────────────────────────
+# -- FcRn binding / antibody half-life prediction ------------------------------
 
 .igg_base_halflife <- c(
   "IgG1"    = 21,
@@ -109,13 +156,13 @@ characterize_epitope <- function(epitope_region, epitope_type = "Unknown",
 .fc_mutation_effects <- data.table::data.table(
   Mutation     = c("YTE (M252Y/S254T/T256E)", "LS (M428L/N434S)", "M428L/N434S",
                    "GASDALIE (G236A/S239D/A330L/I332E)", "ALAYT", "N434H",
-                   "Xtend (M428L/N434S — same as LS)", "Wild-type (none)"),
+                   "Xtend (M428L/N434S - same as LS)", "Wild-type (none)"),
   Fold_change  = c(1.5, 1.3, 1.5, 0.67, 1.2, 1.3, 1.5, 1.0),
   Mechanism    = c(
     "Increased FcRn binding at pH 6.0; faster recycling",
     "FcRn affinity enhancement; similar to YTE but different residues",
     "Increased FcRn pH 6.0 affinity; prolonged recycling",
-    "Enhanced FcγRIII binding for ADCC; slightly shorter half-life due to faster clearance",
+    "Enhanced FcgammaRIII binding for ADCC; slightly shorter half-life due to faster clearance",
     "Moderate FcRn improvement",
     "Enhanced FcRn binding",
     "Same as M428L/N434S",
@@ -123,6 +170,33 @@ characterize_epitope <- function(epitope_region, epitope_type = "Unknown",
   )
 )
 
+#' Predict antibody half-life from IgG subclass, Fc mutations, and DAR
+#'
+#' @description Estimates the plasma half-life of an ADC based on the IgG
+#'   subclass baseline, known Fc mutation multipliers (YTE, LS, GASDALIE,
+#'   etc.), DAR-dependent clearance penalty, and conjugation site modifier.
+#'
+#' @param igg_subclass character(1). One of \code{"IgG1"}, \code{"IgG2"},
+#'   \code{"IgG3"}, \code{"IgG4"}, \code{"IgG1 (YTE)"},
+#'   \code{"IgG1 (LS)"}, \code{"IgG1 (M428L/N434S)"},
+#'   \code{"IgG1 (GASDALIE)"}. Default \code{"IgG1"}.
+#' @param fc_mutations character vector. Fc mutation names to apply (partial
+#'   matching against the internal mutation table). Default empty vector.
+#' @param dar numeric(1). Drug-to-antibody ratio (0-8). Higher DAR increases
+#'   clearance. Default 4.
+#' @param conjugation_site character(1). One of \code{"Cys-engineered"},
+#'   \code{"Lys (NHS ester / non-specific)"}, \code{"Fab-Cys"},
+#'   \code{"Fc-glycan"}, \code{"N-term"}. Default \code{"Cys-engineered"}.
+#'
+#' @return Named list with: \code{predicted_halflife} (numeric, days),
+#'   \code{halflife_range} (numeric(2), 85-115\% CI), \code{tier}
+#'   (character), \code{mutation_multiplier}, \code{dar_penalty_pct},
+#'   \code{site_penalty_pct}, \code{note} (character).
+#'
+#' @export
+#' @examples
+#' predict_halflife(igg_subclass = "IgG1", fc_mutations = "YTE", dar = 4)
+#' predict_halflife(igg_subclass = "IgG4", dar = 8, conjugation_site = "Fab-Cys")
 predict_halflife <- function(igg_subclass = "IgG1", fc_mutations = character(0),
                               dar = 4, conjugation_site = "Cys-engineered") {
   base_hl <- .igg_base_halflife[igg_subclass]
@@ -134,7 +208,7 @@ predict_halflife <- function(igg_subclass = "IgG1", fc_mutations = character(0),
     row <- .fc_mutation_effects[grepl(m, Mutation, ignore.case = TRUE)]
     if (nrow(row) > 0) {
       mut_multiplier <- mut_multiplier * row$Fold_change[1]
-      mut_effects <- c(mut_effects, paste0(row$Mutation[1], " (×", row$Fold_change[1], ")"))
+      mut_effects <- c(mut_effects, paste0(row$Mutation[1], " (?", row$Fold_change[1], ")"))
     }
   }
 
@@ -156,8 +230,8 @@ predict_halflife <- function(igg_subclass = "IgG1", fc_mutations = character(0),
   predicted_hl  <- base_hl * mut_multiplier * (1 - total_penalty)
 
   tier <- if (predicted_hl >= 25) "Excellent (> 25 days)"
-          else if (predicted_hl >= 18) "Good (18–25 days)"
-          else if (predicted_hl >= 10) "Moderate (10–18 days)"
+          else if (predicted_hl >= 18) "Good (18-25 days)"
+          else if (predicted_hl >= 10) "Moderate (10-18 days)"
           else "Short (< 10 days)"
 
   list(
@@ -174,7 +248,7 @@ predict_halflife <- function(igg_subclass = "IgG1", fc_mutations = character(0),
     dar                   = dar,
     conjugation_site      = conjugation_site,
     note = paste0(
-      "Predicted t½ based on ", igg_subclass, " baseline (", round(base_hl, 0), " d), ",
+      "Predicted t1/2 based on ", igg_subclass, " baseline (", round(base_hl, 0), " d), ",
       if (length(mut_effects) > 0) paste0("Fc mutations: ", paste(mut_effects, collapse = ", "), "; ") else "no Fc mutations; ",
       "DAR ", dar, " payload penalty: -", round(dar_penalty * 100), "%; ",
       "site penalty (", conjugation_site, "): -", round(site_modifier * 100), "%."
@@ -182,13 +256,37 @@ predict_halflife <- function(igg_subclass = "IgG1", fc_mutations = character(0),
   )
 }
 
-# ── PK & Bystander effect (simple models) ────────────────────────────────────
+# -- PK & Bystander effect (simple models) ------------------------------------
 
+#' Simulate ADC plasma pharmacokinetics
+#'
+#' @description Two-compartment approximate PK simulation tracking intact ADC
+#'   and deconjugated naked antibody concentrations over time. Uses a simple
+#'   one-exponential model with a first-order deconjugation rate.
+#'
+#' @param dose_mg_kg numeric(1). Dose in mg/kg. Default 3.
+#' @param bw_kg numeric(1). Body weight in kg (used for dose conversion).
+#'   Default 70.
+#' @param halflife_days numeric(1). ADC plasma half-life in days (from
+#'   \code{\link{predict_halflife}}).
+#' @param dar numeric(1). Drug-to-antibody ratio. Default 4.
+#' @param deconjugation_halflife_days numeric(1). Linker deconjugation
+#'   half-life in plasma (days). Default 5.
+#' @param days numeric(1). Simulation duration in days. Default 21.
+#'
+#' @return data.frame with columns: \code{Day}, \code{Intact_ADC}
+#'   (\eqn{\mu}g/mL), \code{Naked_Ab} (\eqn{\mu}g/mL).
+#'
+#' @export
+#' @examples
+#' hl <- predict_halflife(dar = 4)
+#' pk <- simulate_adc_pk(dose_mg_kg = 3, halflife_days = hl$predicted_halflife)
+#' head(pk)
 simulate_adc_pk <- function(dose_mg_kg = 3, bw_kg = 70, halflife_days,
                              dar = 4, deconjugation_halflife_days = 5, days = 21) {
   t    <- seq(0, days, by = 0.25)
   Vd   <- 3.5  # L/kg approximate distribution volume for IgG
-  dose_ug_ml <- (dose_mg_kg * 1e3) / Vd  # rough initial plasma conc (µg/mL)
+  dose_ug_ml <- (dose_mg_kg * 1e3) / Vd  # rough initial plasma conc (mug/mL)
 
   ke_adc  <- log(2) / halflife_days
   ke_deconj <- log(2) / deconjugation_halflife_days
@@ -204,6 +302,26 @@ simulate_adc_pk <- function(dose_mg_kg = 3, bw_kg = 70, halflife_days,
   )
 }
 
+#' Score bystander killing potential of an ADC payload
+#'
+#' @description Evaluates the bystander effect potential of a named payload by
+#'   looking up its cell permeability and IC50 in the payload reference table.
+#'   Relevant for solid tumors with heterogeneous antigen expression.
+#'
+#' @param payload_name character(1). Payload name matching the \code{Name}
+#'   column of \code{\link{get_payload_table}} (case-insensitive).
+#' @param payload_table data.table or NULL. Custom payload table. If
+#'   \code{NULL} (default), uses \code{\link{get_payload_table}()}.
+#'
+#' @return Named list with: \code{score} (integer, 0-8),
+#'   \code{tier} ("High" / "Moderate" / "Low"),
+#'   \code{permeable} (logical), \code{ic50_nm} (numeric), \code{notes}
+#'   (character).
+#'
+#' @export
+#' @examples
+#' score_bystander_effect("MMAE")
+#' score_bystander_effect("DM1")
 score_bystander_effect <- function(payload_name, payload_table = NULL) {
   if (is.null(payload_table)) payload_table <- get_payload_table()
   row <- payload_table[toupper(Name) == toupper(payload_name)]
@@ -219,10 +337,10 @@ score_bystander_effect <- function(payload_name, payload_table = NULL) {
 
   tier  <- if (score >= 7) "High" else if (score >= 4) "Moderate" else "Low"
   notes <- if (isTRUE(permeable))
-    paste0(payload_name, " is cell-permeable → strong bystander killing in antigen-heterogeneous tumors. ",
+    paste0(payload_name, " is cell-permeable -> strong bystander killing in antigen-heterogeneous tumors. ",
            "IC50 = ", ic50, " nM. Bystander benefit is highest when tumor antigen expression is heterogeneous.")
   else
-    paste0(payload_name, " is NOT cell-permeable → limited bystander effect. ",
+    paste0(payload_name, " is NOT cell-permeable -> limited bystander effect. ",
            "Best suited for targets with uniformly high antigen density. Consider switching to a permeable payload (MMAE, DXd) if antigen heterogeneity is a concern.")
 
   list(score = score, tier = tier, permeable = permeable, ic50_nm = ic50, notes = notes)

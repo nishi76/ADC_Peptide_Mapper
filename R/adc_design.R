@@ -1,8 +1,23 @@
-# adc_design.R  —  ADC Peptide Mapper v1.0
+# adc_design.R  -  ADC Peptide Mapper v1.0
 # Linker chemistry table, payload database, deconjugation prediction
 
-# ── Linker database ───────────────────────────────────────────────────────────
+# -- Linker database -----------------------------------------------------------
 
+#' Retrieve the curated ADC linker chemistry reference table
+#'
+#' @description Returns a data.table containing 14 clinically relevant or
+#'   investigational ADC linker chemistries with stability rankings, cleavage
+#'   triggers, plasma half-lives, DAR ranges, and approved ADC examples.
+#'
+#' @return data.table with columns: \code{Name}, \code{Type} ("Cleavable" or
+#'   "Non-cleavable"), \code{Chemistry}, \code{Cleavage_trigger},
+#'   \code{t_half_plasma_days}, \code{DAR_range}, \code{Stability_rank}
+#'   (A+/A/B/C/D), \code{Approved_examples}, \code{Notes}.
+#'
+#' @export
+#' @examples
+#' lt <- get_linker_table()
+#' lt[Type == "Cleavable", .(Name, Stability_rank, t_half_plasma_days)]
 get_linker_table <- function() {
   data.table::data.table(
     Name = c(
@@ -34,7 +49,7 @@ get_linker_table <- function() {
       "None (site-specific)", "None (bioorthogonal)"
     ),
     t_half_plasma_days = c(7, 6, 0.5, 1.5, ">30", 2, 5, 9, 1.5, 0.8, 21, ">30", ">30", ">30"),
-    DAR_range = c("2–8", "2–8", "2–4", "2–4", "3–4", "2–4", "2–8", "4–8", "2–4", "2–4", "2–4", "4–8", "1–2 (site-specific)", "2 (site-specific)"),
+    DAR_range = c("2-8", "2-8", "2-4", "2-4", "3-4", "2-4", "2-8", "4-8", "2-4", "2-4", "2-4", "4-8", "1-2 (site-specific)", "2 (site-specific)"),
     Stability_rank = c("A", "A", "C", "B", "A+", "B", "A", "A+", "C", "D", "A", "A+", "A+", "A+"),
     Approved_examples = c(
       "Adcetris (brentuximab vedotin), Polivy, Padcev", "Trodelvy (SN-38 variant)",
@@ -64,15 +79,32 @@ get_linker_table <- function() {
   )
 }
 
-# ── Payload database ─────────────────────────────────────────────────────────
+# -- Payload database ---------------------------------------------------------
 
+#' Retrieve the curated ADC cytotoxic payload reference table
+#'
+#' @description Returns a data.table with 15 clinically relevant or
+#'   investigational ADC payloads covering auristatins, maytansinoids,
+#'   camptothecin derivatives, PBD dimers, enediynes, anthracyclines, and
+#'   novel mechanisms, with IC50, bystander potential, resistance gene, and
+#'   approved ADC information.
+#'
+#' @return data.table with columns: \code{Name}, \code{Class}, \code{MOA},
+#'   \code{Target_molecule}, \code{IC50_nM}, \code{DAR_optimal},
+#'   \code{Cell_permeable_bystander} (logical), \code{Resistance_genes},
+#'   \code{Approved_ADCs}, \code{Potency_rank} (1-5), \code{Notes}.
+#'
+#' @export
+#' @examples
+#' pt <- get_payload_table()
+#' pt[Cell_permeable_bystander == TRUE, .(Name, IC50_nM)]
 get_payload_table <- function() {
   data.table::data.table(
     Name = c(
       "MMAE", "MMAF", "DM1", "DM4", "DXd (Exatecan derivative)",
       "SN-38", "Calicheamicin", "PBD dimer (SG3249)", "Duocarmycin SA",
       "Pyrrolobenzodiazepine (PBD monomer)", "Doxorubicin", "Topotecan",
-      "Camptothecin", "Amatoxin (α-amanitin)", "Pseudomonas exotoxin (PE38)"
+      "Camptothecin", "Amatoxin (alpha-amanitin)", "Pseudomonas exotoxin (PE38)"
     ),
     Class = c(
       "Auristatin", "Auristatin", "Maytansinoid", "Maytansinoid", "Camptothecin derivative",
@@ -91,23 +123,23 @@ get_payload_table <- function() {
       "ADP-ribosylation of EF-2 (protein synthesis)"
     ),
     Target_molecule = c(
-      "β-tubulin", "β-tubulin", "β-tubulin", "β-tubulin", "Topoisomerase I",
+      "beta-tubulin", "beta-tubulin", "beta-tubulin", "beta-tubulin", "Topoisomerase I",
       "Topoisomerase I", "DNA", "DNA", "DNA", "DNA",
       "Topoisomerase II / DNA", "Topoisomerase I", "Topoisomerase I",
       "RNA Pol II", "Elongation factor 2"
     ),
     IC50_nM = c(0.1, 0.1, 0.01, 0.01, 0.7, 3.0, 0.001, 0.001, 0.01, 0.1,
                 10.0, 2.0, 2.0, 0.002, 0.001),
-    DAR_optimal = c("4", "4", "3–4", "3–4", "4–8", "4–8",
-                    "2–3", "2", "4", "2–4",
-                    "4–6", "4–8", "4–8", "2–3", "1 (protein)"),
+    DAR_optimal = c("4", "4", "3-4", "3-4", "4-8", "4-8",
+                    "2-3", "2", "4", "2-4",
+                    "4-6", "4-8", "4-8", "2-3", "1 (protein)"),
     Cell_permeable_bystander = c(
       TRUE, FALSE, FALSE, FALSE, TRUE, TRUE,
       FALSE, FALSE, TRUE, FALSE,
       TRUE, TRUE, TRUE, FALSE, FALSE
     ),
     Resistance_genes = c(
-      "MDR1 (ABCB1), β-III tubulin", "MDR1 (lower vs MMAE)", "MDR1, ABCC1",
+      "MDR1 (ABCB1), beta-III tubulin", "MDR1 (lower vs MMAE)", "MDR1, ABCC1",
       "MDR1, ABCC1", "ABCG2, ABCB1", "UGT1A1, ABCG2",
       "MDR1 rare", "Low (DNA crosslink)", "Low", "Low",
       "MDR1, MRP1", "ABCG2", "ABCG2", "Rare (novel MOA)", "Rare"
@@ -123,7 +155,7 @@ get_payload_table <- function() {
     ),
     Potency_rank = c(3L, 3L, 4L, 4L, 2L, 1L, 5L, 5L, 4L, 4L, 1L, 2L, 2L, 5L, 5L),
     Notes = c(
-      "Most-used ADC payload. Cell-permeable → strong bystander killing. High MDR1 susceptibility.",
+      "Most-used ADC payload. Cell-permeable -> strong bystander killing. High MDR1 susceptibility.",
       "Non-permeable auristatin. Lower bystander; useful where off-target bystander is risky.",
       "Maytansinoid used in Kadcyla. Non-permeable. Requires high antigen density.",
       "Used in ELAHERE. Disulfide linker preferred. Slightly more lipophilic than DM1.",
@@ -142,8 +174,38 @@ get_payload_table <- function() {
   )
 }
 
-# ── Deconjugation prediction ─────────────────────────────────────────────────
+# -- Deconjugation prediction -------------------------------------------------
 
+#' Predict ADC deconjugation kinetics in plasma
+#'
+#' @description Models DAR decay over time using a first-order rate equation
+#'   parameterised by linker-chemistry-specific plasma half-lives. Returns a
+#'   kinetics curve, stability classification, days above therapeutic
+#'   threshold, and an interpretive warning message.
+#'
+#' @param chemistry character(1). Linker chemistry string (must match one of
+#'   the \code{switch} cases in the function body; see the source for the full
+#'   list, e.g. \code{"Maleimide-thiol (MC-VC-PABC / SMCC)"}).
+#' @param site character(1). Conjugation site description (used for
+#'   site-specific notes, e.g. \code{"Lys (NHS ester / non-specific)"}).
+#' @param initial_dar numeric(1). Starting DAR value (default 4).
+#' @param days numeric(1). Simulation time in days (default 21).
+#'
+#' @return Named list with elements: \code{curve} (data.frame with
+#'   \code{Day} and \code{DAR}), \code{stability_class} (character, A+/A/B/C/D),
+#'   \code{stability_label} (character), \code{t_half} (numeric, days),
+#'   \code{therapeutic_threshold} (numeric), \code{days_above_threshold}
+#'   (numeric), \code{warning_msg} (character), \code{chemistry},
+#'   \code{site}, \code{initial_dar}.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   res <- predict_deconjugation("Maleimide-thiol (MC-VC-PABC / SMCC)",
+#'                                site = "Cys-engineered")
+#'   res$stability_class
+#'   head(res$curve)
+#' }
 predict_deconjugation <- function(chemistry, site, initial_dar = 4, days = 21) {
   t <- seq(0, days, by = 0.5)
 
@@ -159,12 +221,12 @@ predict_deconjugation <- function(chemistry, site, initial_dar = 4, days = 21) {
     "Disulfide (SPDB / Sulfo-SPDB)" = list(
       t_half      = 1.5,
       stability   = "C",
-      warning_msg = "Plasma albumin and glutathione can reduce disulfide bonds extracellularly. Short t½ in reducing tumor microenvironment can be advantageous for payload release, but reduces systemic stability."
+      warning_msg = "Plasma albumin and glutathione can reduce disulfide bonds extracellularly. Short t1/2 in reducing tumor microenvironment can be advantageous for payload release, but reduces systemic stability."
     ),
     "Acid-labile hydrazone (CL2A)" = list(
       t_half      = 0.6,
       stability   = "D",
-      warning_msg = "Hydrazone linkers hydrolyze rapidly at acidic pH. Significant payload loss expected within 12–24 h in plasma. Only suitable for highly cytotoxic payloads with minimal off-target effects."
+      warning_msg = "Hydrazone linkers hydrolyze rapidly at acidic pH. Significant payload loss expected within 12-24 h in plasma. Only suitable for highly cytotoxic payloads with minimal off-target effects."
     ),
     "Oxime (aminooxy)" = list(
       t_half      = 21,
@@ -191,9 +253,9 @@ predict_deconjugation <- function(chemistry, site, initial_dar = 4, days = 21) {
 
   stability_labels <- c(
     "A+" = "Exceptional (> 30 days)",
-    "A"  = "Excellent (7–14 days)",
-    "B"  = "Good (3–7 days)",
-    "C"  = "Moderate (1–3 days)",
+    "A"  = "Excellent (7-14 days)",
+    "B"  = "Good (3-7 days)",
+    "C"  = "Moderate (1-3 days)",
     "D"  = "Poor (< 1 day)"
   )
 
@@ -211,8 +273,25 @@ predict_deconjugation <- function(chemistry, site, initial_dar = 4, days = 21) {
   )
 }
 
-# ── Deconjugation plot ────────────────────────────────────────────────────────
+# -- Deconjugation plot --------------------------------------------------------
 
+#' Plot ADC deconjugation kinetics curve
+#'
+#' @description Creates a ggplot2 line plot of DAR over time from the output
+#'   of \code{\link{predict_deconjugation}}, with a shaded sub-therapeutic
+#'   zone and dashed threshold line.
+#'
+#' @param result list. Output of \code{\link{predict_deconjugation}}.
+#'
+#' @return A \code{ggplot2} object. Print or save with \code{ggsave()}.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   res <- predict_deconjugation("Maleimide-thiol (MC-VC-PABC / SMCC)",
+#'                                site = "Cys-engineered")
+#'   plot_deconjugation(res)
+#' }
 plot_deconjugation <- function(result) {
   df <- result$curve
   thresh <- result$therapeutic_threshold
@@ -232,9 +311,9 @@ plot_deconjugation <- function(result) {
     ggplot2::geom_point(data = df[df$Day %% 3 == 0, ],
       color = "#0d9488", size = 2.5) +
     ggplot2::labs(
-      title = paste0("DAR Decay — ", result$chemistry),
+      title = paste0("DAR Decay - ", result$chemistry),
       subtitle = paste0("Site: ", result$site,
-        "  |  t½ = ", result$t_half, " d",
+        "  |  t1/2 = ", result$t_half, " d",
         "  |  Stability class: ", result$stability_class,
         " (", result$stability_label, ")"),
       x = "Days post-administration",

@@ -1,8 +1,8 @@
 # =============================================================================
-# msearch.R — ADC Peptide Mapper v0.8
+# msearch.R - ADC Peptide Mapper v0.8
 # =============================================================================
 # MS/MS search integration via MS Amanda 3.0 (primary) and Tide/Crux (fallback).
-# Sourced by app.R. No library() calls — depends on data.table loaded by app.
+# Sourced by app.R. No library() calls - depends on data.table loaded by app.
 #
 # Public API
 # ----------
@@ -12,14 +12,14 @@
 #   parse_search_results(out_dir_or_file, engine, score_threshold, evalue_threshold)
 #
 # Engine resolution order:
-#   1. MS Amanda 3.0  — checked first (primary)
-#   2. Tide/Crux 4.x  — checked only if MS Amanda not found (fallback)
+#   1. MS Amanda 3.0  - checked first (primary)
+#   2. Tide/Crux 4.x  - checked only if MS Amanda not found (fallback)
 #
 # Supported input formats for Path A upload (parse_search_results):
-#   1. mzIdentML (.mzid / .mzidentml) — MS Amanda output
-#   2. pepXML    (.pep.xml / .pepxml)  — Tide/Crux output
-#   3. psm.tsv                         — FragPipe / MSFragger legacy
-#   4. MS Amanda CSV (.csv)            — Amanda summary CSV
+#   1. mzIdentML (.mzid / .mzidentml) - MS Amanda output
+#   2. pepXML    (.pep.xml / .pepxml)  - Tide/Crux output
+#   3. psm.tsv                         - FragPipe / MSFragger legacy
+#   4. MS Amanda CSV (.csv)            - Amanda summary CSV
 #
 # Download instructions:
 #   MS Amanda 3.0 : https://github.com/hgb-bin-proteomics/MSAmanda/releases
@@ -114,7 +114,7 @@
 #     3. system PATH via Sys.which("crux")
 #
 # Args:
-#   exe_path : character(1) or NULL — explicit path supplied by user in UI
+#   exe_path : character(1) or NULL - explicit path supplied by user in UI
 #
 # Returns:
 #   list(
@@ -125,12 +125,33 @@
 #     error_msg = character(1)    # human-readable reason if available=FALSE
 #   )
 # =============================================================================
+#' Detect an available MS database search engine
+#'
+#' @description Searches for MS Amanda or Tide/Crux on the current system.
+#'   Checks an explicit path first, then environment variables, then common
+#'   installation directories, then the system PATH. MS Amanda is preferred;
+#'   Tide/Crux is used as a fallback.
+#'
+#' @param exe_path character(1) or \code{NULL}. Explicit path to the search
+#'   engine binary supplied by the user. When \code{NULL} the function
+#'   auto-detects.
+#'
+#' @return Named list with elements:
+#'   \describe{
+#'     \item{engine}{character. \code{"msamanda"}, \code{"tide"}, or \code{"none"}.}
+#'     \item{available}{logical. \code{TRUE} if a usable binary was found.}
+#'     \item{exe}{character. Resolved path to the binary, or \code{""}.}
+#'     \item{version}{character. Version string returned by the binary, or \code{""}.}
+#'     \item{error_msg}{character. Human-readable reason when \code{available} is \code{FALSE}.}
+#'   }
+#'
+#' @export
 detect_search_engine <- function(exe_path = NULL) {
 
   result <- list(engine = "none", available = FALSE,
                  exe = "", version = "", error_msg = "")
 
-  # ── Helper: run binary with --version and capture output ──────────────────
+  # -- Helper: run binary with --version and capture output ------------------
   .try_version <- function(exe) {
     tryCatch(
       system2(exe, args = "--version", stdout = TRUE, stderr = TRUE,
@@ -140,7 +161,7 @@ detect_search_engine <- function(exe_path = NULL) {
     )
   }
 
-  # ── Helper: scan a list of directories for a binary name ──────────────────
+  # -- Helper: scan a list of directories for a binary name ------------------
   .scan_dirs <- function(dirs, names) {
     for (d in dirs) {
       if (!dir.exists(d)) next
@@ -199,7 +220,7 @@ detect_search_engine <- function(exe_path = NULL) {
       result$version   <- ver_str
       return(result)
     }
-    # Binary exists but didn't respond — still accept it (some builds exit non-zero on --version)
+    # Binary exists but didn't respond - still accept it (some builds exit non-zero on --version)
     result$engine    <- "msamanda"
     result$available <- TRUE
     result$exe       <- amanda_exe
@@ -270,12 +291,12 @@ detect_search_engine <- function(exe_path = NULL) {
 # Write a MS Amanda 3.0 settings.xml to out_dir.
 #
 # Args:
-#   out_dir          : character(1) — directory to write settings.xml
-#   enzyme_id        : character(1) — app enzyme_id (e.g. "trypsin")
-#   missed_cleavages : integer(1)   — 0, 1, or 2
-#   payload_mass     : numeric(1) or NULL — drug-linker variable mod mass (Da)
+#   out_dir          : character(1) - directory to write settings.xml
+#   enzyme_id        : character(1) - app enzyme_id (e.g. "trypsin")
+#   missed_cleavages : integer(1)   - 0, 1, or 2
+#   payload_mass     : numeric(1) or NULL - drug-linker variable mod mass (Da)
 #
-# Returns: character(1) — path to written settings.xml
+# Returns: character(1) - path to written settings.xml
 # =============================================================================
 .write_msamanda_settings <- function(out_dir, enzyme_id,
                                      missed_cleavages, payload_mass = NULL) {
@@ -309,7 +330,7 @@ detect_search_engine <- function(exe_path = NULL) {
 
   xml_content <- sprintf(
 '<?xml version="1.0" encoding="utf-8"?>
-<!-- MS Amanda settings.xml — generated by ADC Peptide Mapper v0.8 -->
+<!-- MS Amanda settings.xml - generated by ADC Peptide Mapper v0.8 -->
 <Settings>
   <Enzyme>
     <Name>%s</Name>
@@ -349,17 +370,18 @@ detect_search_engine <- function(exe_path = NULL) {
 # MS Amanda 3.0 processes one file per CLI call; this function loops.
 #
 # Args:
-#   exe              : character(1) — path to MSAmanda binary
-#   raw_files        : character vector — paths to mzML or MGF files
-#   fasta_path       : character(1) — path to ADC FASTA
-#   enzyme_id        : character(1) — app enzyme_id
+#   exe              : character(1) - path to MSAmanda binary
+#   raw_files        : character vector - paths to mzML or MGF files
+#   fasta_path       : character(1) - path to ADC FASTA
+#   enzyme_id        : character(1) - app enzyme_id
 #   missed_cleavages : integer(1)
 #   payload_mass     : numeric(1) or NULL
-#   out_dir          : character(1) — output directory
+#   out_dir          : character(1) - output directory
 #
 # Returns:
 #   list(exit_code, stdout, stderr, out_dir)
 # =============================================================================
+#' @keywords internal
 run_msamanda <- function(exe, raw_files, fasta_path, enzyme_id,
                          missed_cleavages, payload_mass = NULL, out_dir) {
 
@@ -413,17 +435,18 @@ run_msamanda <- function(exe, raw_files, fasta_path, enzyme_id,
 # Both steps are transparent to the user.
 #
 # Args:
-#   exe              : character(1) — path to crux binary
-#   raw_files        : character vector — paths to mzML, mzXML, or MGF files
-#   fasta_path       : character(1) — path to ADC FASTA
-#   enzyme_id        : character(1) — app enzyme_id
+#   exe              : character(1) - path to crux binary
+#   raw_files        : character vector - paths to mzML, mzXML, or MGF files
+#   fasta_path       : character(1) - path to ADC FASTA
+#   enzyme_id        : character(1) - app enzyme_id
 #   missed_cleavages : integer(1)
 #   payload_mass     : numeric(1) or NULL
-#   out_dir          : character(1) — output directory
+#   out_dir          : character(1) - output directory
 #
 # Returns:
 #   list(exit_code, stdout, stderr, out_dir)
 # =============================================================================
+#' @keywords internal
 run_tide <- function(exe, raw_files, fasta_path, enzyme_id,
                      missed_cleavages, payload_mass = NULL, out_dir) {
 
@@ -454,7 +477,7 @@ run_tide <- function(exe, raw_files, fasta_path, enzyme_id,
   all_stdout <- character(0)
   all_stderr <- character(0)
 
-  # ── Step 1: tide-index ────────────────────────────────────────────────────
+  # -- Step 1: tide-index ----------------------------------------------------
   idx_out <- tryCatch(
     system2(
       command = exe,
@@ -492,7 +515,7 @@ run_tide <- function(exe, raw_files, fasta_path, enzyme_id,
     }
   }
 
-  # ── Step 2: tide-search ───────────────────────────────────────────────────
+  # -- Step 2: tide-search ---------------------------------------------------
   srch_out <- tryCatch(
     system2(
       command = exe,
@@ -537,7 +560,7 @@ run_tide <- function(exe, raw_files, fasta_path, enzyme_id,
 # engine_info$engine returned by detect_search_engine().
 #
 # Args:
-#   engine_info      : list — output of detect_search_engine()
+#   engine_info      : list - output of detect_search_engine()
 #   raw_files        : character vector
 #   fasta_path       : character(1)
 #   enzyme_id        : character(1)
@@ -548,6 +571,25 @@ run_tide <- function(exe, raw_files, fasta_path, enzyme_id,
 # Returns:
 #   list(exit_code, stdout, stderr, out_dir)
 # =============================================================================
+#' Run the detected MS database search engine on spectral files
+#'
+#' @description Dispatches to \code{run_msamanda} or \code{run_tide} based on
+#'   the engine detected by \code{\link{detect_search_engine}}. Stops with an
+#'   informative message if no engine is available.
+#'
+#' @param engine_info list. Output of \code{\link{detect_search_engine}}.
+#' @param raw_files character vector. Paths to mzML, mzXML, or MGF spectral files.
+#' @param fasta_path character(1). Path to the ADC FASTA file.
+#' @param enzyme_id character(1). App enzyme identifier (e.g. \code{"trypsin"}).
+#' @param missed_cleavages integer(1). Allowed missed cleavages.
+#' @param payload_mass numeric(1) or \code{NULL}. Drug-linker mass delta for
+#'   variable modification, or \code{NULL} to skip.
+#' @param out_dir character(1). Output directory for search results.
+#'
+#' @return Named list with elements \code{exit_code}, \code{stdout},
+#'   \code{stderr}, and \code{out_dir}.
+#'
+#' @export
 run_search_engine <- function(engine_info, raw_files, fasta_path,
                                enzyme_id, missed_cleavages,
                                payload_mass = NULL, out_dir) {
@@ -587,11 +629,11 @@ run_search_engine <- function(engine_info, raw_files, fasta_path,
 # data.table. Auto-detects format from file extension and content.
 #
 # Args:
-#   out_dir_or_file  : character(1) — directory or direct file path
-#   engine           : character(1) — "msamanda", "tide", or "none"
+#   out_dir_or_file  : character(1) - directory or direct file path
+#   engine           : character(1) - "msamanda", "tide", or "none"
 #                      Used as a hint; format is always auto-detected.
-#   score_threshold  : numeric(1) or NULL — minimum Score to retain
-#   evalue_threshold : numeric(1) or NULL — maximum E-value to retain
+#   score_threshold  : numeric(1) or NULL - minimum Score to retain
+#   evalue_threshold : numeric(1) or NULL - maximum E-value to retain
 #
 # Returns:
 #   data.table with columns:
@@ -599,6 +641,28 @@ run_search_engine <- function(engine_info, raw_files, fasta_path,
 #     Evalue, SourceFile, ScanNum, Modifications
 #   Zero-row table with same schema on failure.
 # =============================================================================
+#' Parse MS database search results into a normalised data.table
+#'
+#' @description Reads MS Amanda, Tide/Crux, or legacy MSFragger result files
+#'   and returns a consistent data.table schema regardless of source format.
+#'   The file format is auto-detected from the extension and content; the
+#'   \code{engine} argument is used only as a hint.
+#'
+#' @param out_dir_or_file character(1). Path to the search results directory or
+#'   a direct file path (\code{.tsv}, \code{.txt}, \code{.csv}).
+#' @param engine character(1). Hint for format detection. One of
+#'   \code{"msamanda"}, \code{"tide"}, or \code{"none"}. Default \code{"none"}.
+#' @param score_threshold numeric(1) or \code{NULL}. Minimum \code{Score} to
+#'   retain. \code{NULL} keeps all rows.
+#' @param evalue_threshold numeric(1) or \code{NULL}. Maximum E-value to
+#'   retain. \code{NULL} keeps all rows.
+#'
+#' @return data.table with columns \code{Sequence}, \code{ModifiedSequence},
+#'   \code{Charge}, \code{RT_sec}, \code{Score}, \code{Evalue},
+#'   \code{SourceFile}, \code{ScanNum}, \code{Modifications}, \code{IsDecoy},
+#'   \code{q_value}. Returns a zero-row table with the same schema on failure.
+#'
+#' @export
 parse_search_results <- function(out_dir_or_file,
                                   engine           = "none",
                                   score_threshold  = NULL,
@@ -621,7 +685,7 @@ parse_search_results <- function(out_dir_or_file,
     )
   }
 
-  # ── Resolve file path ──────────────────────────────────────────────────────
+  # -- Resolve file path ------------------------------------------------------
   target <- out_dir_or_file
 
   if (dir.exists(target)) {
@@ -651,7 +715,7 @@ parse_search_results <- function(out_dir_or_file,
     return(.empty())
   }
 
-  # ── Detect format ──────────────────────────────────────────────────────────
+  # -- Detect format ----------------------------------------------------------
   ext <- tolower(tools::file_ext(target))
   if (ext == "xml") {
     ext2 <- tolower(tools::file_ext(sub("\\.[^.]+$", "", target)))
@@ -684,13 +748,13 @@ parse_search_results <- function(out_dir_or_file,
       }
     }
   }, error = function(e) {
-    message("parse_search_results: parse error — ", conditionMessage(e))
+    message("parse_search_results: parse error - ", conditionMessage(e))
     .empty()
   })
 
   if (nrow(dt) == 0L) return(.empty())
 
-  # ── Target-decoy FDR estimation ────────────────────────────────────────────
+  # -- Target-decoy FDR estimation --------------------------------------------
   # Flag decoys: any PSM whose SourceFile protein field contains a standard
   # decoy prefix ("DECOY_", "REV_", "rev_", "decoy_").  For engines that
   # embed protein accessions in the Modifications or ModifiedSequence columns
@@ -699,10 +763,10 @@ parse_search_results <- function(out_dir_or_file,
   #
   # The q-value is the minimum FDR at which this PSM would be retained if all
   # PSMs with higher score were accepted: q = cumsum(decoy) / cumsum(target).
-  # This is the "competition" FDR estimator (Käll et al. 2008, Nat. Methods).
+  # This is the "competition" FDR estimator (K?ll et al. 2008, Nat. Methods).
   dt <- .add_fdr_columns(dt)
 
-  # ── Apply score / q-value filters ─────────────────────────────────────────
+  # -- Apply score / q-value filters -----------------------------------------
   if (!is.null(score_threshold) && !is.na(score_threshold)) {
     dt <- dt[Score >= score_threshold]
   }
@@ -722,16 +786,16 @@ parse_search_results <- function(out_dir_or_file,
 # Decoy heuristic (in priority order):
 #   1. Protein accession in ProteinAcc column starts with DECOY_/REV_/rev_/decoy_
 #   2. ModifiedSequence starts with "DECOY_" (some engines prefix the peptide)
-#   3. No decoys detected → all PSMs treated as targets; FDR columns = NA
+#   3. No decoys detected -> all PSMs treated as targets; FDR columns = NA
 #
-# q-value: Käll et al. (2008) Nat. Methods 5:959.
+# q-value: K?ll et al. (2008) Nat. Methods 5:959.
 #   Sort PSMs by score DESC; q = cumsum(is_decoy) / cumsum(is_target)
 #   with monotone minimum enforced from the bottom up.
 # =============================================================================
 .add_fdr_columns <- function(dt) {
   n <- nrow(dt)
 
-  # ── 1. Detect decoys ────────────────────────────────────────────────────────
+  # -- 1. Detect decoys --------------------------------------------------------
   is_decoy <- logical(n)
 
   if ("ProteinAcc" %in% names(dt)) {
@@ -743,7 +807,7 @@ parse_search_results <- function(out_dir_or_file,
 
   dt[, IsDecoy := is_decoy]
 
-  # ── 2. Compute q-values only when decoys are present ──────────────────────
+  # -- 2. Compute q-values only when decoys are present ----------------------
   if (!any(is_decoy, na.rm = TRUE)) {
     dt[, q_value  := NA_real_]
     dt[, FDR_1pct := NA]
@@ -779,7 +843,7 @@ parse_search_results <- function(out_dir_or_file,
 # Internal parsers
 # =============================================================================
 
-# ── mzIdentML (MS Amanda 3.0 output) ─────────────────────────────────────────
+# -- mzIdentML (MS Amanda 3.0 output) -----------------------------------------
 .parse_mzidentml_v8 <- function(path) {
   if (!requireNamespace("XML", quietly = TRUE)) {
     stop("Package 'XML' is required to parse mzIdentML files. ",
@@ -891,7 +955,7 @@ parse_search_results <- function(out_dir_or_file,
 }
 
 
-# ── pepXML (Tide/Crux output) ─────────────────────────────────────────────────
+# -- pepXML (Tide/Crux output) -------------------------------------------------
 .parse_pepxml_v8 <- function(path) {
   if (!requireNamespace("XML", quietly = TRUE)) {
     stop("Package 'XML' is required to parse pepXML files. ",
@@ -959,7 +1023,7 @@ parse_search_results <- function(out_dir_or_file,
 }
 
 
-# ── psm.tsv (legacy MSFragger / FragPipe) ─────────────────────────────────────
+# -- psm.tsv (legacy MSFragger / FragPipe) -------------------------------------
 .parse_psm_tsv_v8 <- function(path) {
   raw <- data.table::fread(path, sep = "\t", header = TRUE,
                             stringsAsFactors = FALSE, fill = TRUE)
@@ -995,7 +1059,7 @@ parse_search_results <- function(out_dir_or_file,
 }
 
 
-# ── MS Amanda summary CSV ─────────────────────────────────────────────────────
+# -- MS Amanda summary CSV -----------------------------------------------------
 # MS Amanda can export a summary CSV with columns including:
 #   Sequence, Amanda Score, Charge, Filename, Scan Number, ...
 .parse_amanda_csv <- function(path) {

@@ -1,5 +1,5 @@
 # =============================================================================
-# isotopes.R — ADC Peptide Mapper v0.8
+# isotopes.R - ADC Peptide Mapper v0.8
 # =============================================================================
 # Monoisotopic vs. most-abundant precursor isotope selection.
 #
@@ -19,13 +19,13 @@
 # Public API
 # ----------
 #   calc_isotope_distribution(sequence, n_isotopes)
-#     → data.frame(isotope=0:4, probability=..., rel_intensity=...)
+#     -> data.frame(isotope=0:4, probability=..., rel_intensity=...)
 #
 #   recommended_precursor_isotope(sequence)
-#     → integer 0, 1, or 2  (offset from monoisotopic, i.e. M+0/M+1/M+2)
+#     -> integer 0, 1, or 2  (offset from monoisotopic, i.e. M+0/M+1/M+2)
 #
 #   annotate_isotope_offsets(peptides_dt)
-#     → same data.table with RecommendedIsotope column added/updated
+#     -> same data.table with RecommendedIsotope column added/updated
 # =============================================================================
 
 
@@ -50,7 +50,7 @@
 # =============================================================================
 # Compute the probability distribution for a single element with n atoms,
 # using the "first-order" multinomial approximation. Returns a numeric vector
-# of length (n_isotopes + 1): P(0 heavy atoms), P(1), …, P(n_isotopes).
+# of length (n_isotopes + 1): P(0 heavy atoms), P(1), ..., P(n_isotopes).
 # =============================================================================
 .isotope_envelope_element <- function(n_atoms, abundances, n_isotopes) {
   if (n_atoms <= 0 || length(abundances) < 2L) {
@@ -75,16 +75,42 @@
 # Compute the isotope envelope for a peptide sequence.
 #
 # Args:
-#   sequence    : character(1) — single-letter amino acid sequence
-#   n_isotopes  : integer(1)   — number of isotope peaks (default 5: M+0 .. M+4)
+#   sequence    : character(1) - single-letter amino acid sequence
+#   n_isotopes  : integer(1)   - number of isotope peaks (default 5: M+0 .. M+4)
 #
 # Returns:
 #   data.frame with columns:
-#     isotope      : integer — 0, 1, 2, … (offset from monoisotopic)
-#     mz_offset    : numeric — mass offset from M+0 (multiples of neutron mass)
-#     probability  : numeric — unnormalised abundance (sums to 1)
-#     rel_intensity: numeric — intensity relative to most abundant peak (0–100)
+#     isotope      : integer - 0, 1, 2, ... (offset from monoisotopic)
+#     mz_offset    : numeric - mass offset from M+0 (multiples of neutron mass)
+#     probability  : numeric - unnormalised abundance (sums to 1)
+#     rel_intensity: numeric - intensity relative to most abundant peak (0-100)
 # =============================================================================
+#' Compute the isotope envelope for a peptide sequence
+#'
+#' @description Estimates the isotope abundance distribution for a peptide
+#'   using the averagine approximation (Senko et al. 1995, J. Am. Soc. Mass
+#'   Spectrom. 6:229-233). The elemental composition is approximated by
+#'   scaling the averagine monomer to the number of residues and convolving
+#'   element-wise Poisson distributions.
+#'
+#' @param sequence character(1). Single-letter amino acid sequence.
+#' @param n_isotopes integer(1). Number of isotope peaks to return (M+0 to
+#'   M+\code{n_isotopes}). Default 5 (i.e. M+0 through M+4).
+#'
+#' @return data.frame with columns:
+#'   \describe{
+#'     \item{isotope}{integer. Offset from monoisotopic peak (0, 1, 2, ...).}
+#'     \item{mz_offset}{numeric. Mass offset in Da (multiples of neutron mass).}
+#'     \item{probability}{numeric. Relative abundance (normalised to sum = 1).}
+#'     \item{rel_intensity}{numeric. Intensity as a percentage of the most
+#'       abundant peak (0-100).}
+#'   }
+#'
+#' @export
+#' @references Senko et al. (1995) \emph{J. Am. Soc. Mass Spectrom.} 6:229.
+#' @examples
+#' calc_isotope_distribution("EVQLVESGGG")
+#' calc_isotope_distribution("PEPTIDEPEPTIDEPEPTIDE", n_isotopes = 4)
 calc_isotope_distribution <- function(sequence, n_isotopes = 5L) {
   n_isotopes <- as.integer(n_isotopes)
   n_res <- nchar(sequence)
@@ -150,16 +176,31 @@ calc_isotope_distribution <- function(sequence, n_isotopes = 5L) {
 # isotope peak for the given peptide sequence.
 #
 # Guideline:
-#   - < 1,500 Da  → M+0 (monoisotopic)
-#   - 1,500–3,000 → M+1 if M+1 > M+0
-#   - > 3,000 Da  → M+1 or M+2 (whichever is most abundant)
+#   - < 1,500 Da  -> M+0 (monoisotopic)
+#   - 1,500-3,000 -> M+1 if M+1 > M+0
+#   - > 3,000 Da  -> M+1 or M+2 (whichever is most abundant)
 #
 # Args:
-#   sequence : character(1) — single-letter amino acid sequence
+#   sequence : character(1) - single-letter amino acid sequence
 #
 # Returns:
-#   integer(1) — 0, 1, or 2
+#   integer(1) - 0, 1, or 2
 # =============================================================================
+#' Recommend the most abundant precursor isotope peak (M+0, M+1, or M+2)
+#'
+#' @description Returns the isotope offset (0, 1, or 2) corresponding to the
+#'   most abundant peak in the isotope envelope. For peptides below ~1,500 Da
+#'   the monoisotopic peak (M+0) is most abundant; for heavier peptides M+1
+#'   or M+2 should be selected as the isolation target in SRM/MRM methods.
+#'
+#' @param sequence character(1). Single-letter amino acid sequence.
+#'
+#' @return integer(1). 0 (M+0), 1 (M+1), or 2 (M+2).
+#'
+#' @export
+#' @examples
+#' recommended_precursor_isotope("PEPTIDE")          # 0 for short peptides
+#' recommended_precursor_isotope(strrep("PEPTIDE", 5)) # 1 or 2 for large
 recommended_precursor_isotope <- function(sequence) {
   env <- calc_isotope_distribution(sequence, n_isotopes = 4L)
   as.integer(env$isotope[which.max(env$probability)])
@@ -172,15 +213,35 @@ recommended_precursor_isotope <- function(sequence) {
 # Add or update a RecommendedIsotope column in a peptides / transition data.table.
 #
 # Args:
-#   peptides_dt : data.table — must have a PeptideSequence column
+#   peptides_dt : data.table - must have a PeptideSequence column
 #
 # Returns:
 #   same data.table with RecommendedIsotope column (integer) added in-place
 # =============================================================================
+#' Add recommended precursor isotope offsets to a peptide data.table
+#'
+#' @description Adds or updates a \code{RecommendedIsotope} column in a
+#'   peptide or transition data.table by calling
+#'   \code{\link{recommended_precursor_isotope}} for each unique sequence.
+#'   Results are cached per unique sequence for efficiency.
+#'
+#' @param peptides_dt data.table. Must contain a \code{PeptideSequence} column.
+#'
+#' @return The same data.table with a \code{RecommendedIsotope} integer column
+#'   added or updated in-place. Returns the input unchanged (with a warning)
+#'   if \code{PeptideSequence} is absent.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   pep_dt <- digest_fasta_enzyme(fasta)
+#'   pep_dt <- annotate_isotope_offsets(pep_dt)
+#'   pep_dt[, .(PeptideSequence, RecommendedIsotope)]
+#' }
 annotate_isotope_offsets <- function(peptides_dt) {
   if (is.null(peptides_dt) || nrow(peptides_dt) == 0L) return(peptides_dt)
   if (!"PeptideSequence" %in% names(peptides_dt)) {
-    warning("annotate_isotope_offsets: 'PeptideSequence' column missing — skipping.")
+    warning("annotate_isotope_offsets: 'PeptideSequence' column missing - skipping.")
     return(peptides_dt)
   }
 

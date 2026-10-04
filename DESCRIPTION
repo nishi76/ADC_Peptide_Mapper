@@ -1,18 +1,22 @@
 Package: ADCPeptideMapper
 Title: ADC Peptide Mapper — In-silico Digest & Transition List Generator
-Version: 0.8.0
-Date: 2026-06-13
+Version: 1.0.0
+Date: 2026-10-04
 Authors@R: person("Nishikant", "Wase", email = "nishikant.wase@gmail.com",
-                   role = c("aut", "cre"))
-Description: >
-  R Shiny application for Antibody-Drug Conjugate (ADC) peptide mapping:
-  in-silico proteolytic digestion, uniqueness filtering against Human /
-  Cynomolgus Monkey / Rat backgrounds, drug-to-antibody ratio (DAR) modeling,
-  linker biotransformation variable mods, multi-instrument MRM/DIA transition
-  list generation (Skyline, Thermo, SCIEX, Bruker, Agilent, Waters), and
-  an AI-powered assistant tab (Anthropic Claude API).
-License: MIT
+                   role = c("aut", "cre"),
+                   comment = c(ORCID = ""))
+Description: R Shiny application for Antibody-Drug Conjugate (ADC) peptide
+    mapping. Provides in-silico proteolytic digestion with 11 enzymes,
+    uniqueness filtering against Human / Cynomolgus Monkey / Rat background
+    proteomes, drug-to-antibody ratio (DAR) modeling, linker biotransformation
+    variable modifications, multi-instrument MRM/DIA transition list generation
+    (Skyline, Thermo, SCIEX, Bruker, Agilent, Waters), MRM quality assessment,
+    ADC design and target biology scoring tools, and an AI-powered assistant
+    tab (Anthropic Claude API).
+License: MIT + file LICENSE
 Encoding: UTF-8
+URL: https://github.com/nishi76/ADC_Peptide_Mapper_v1.0
+BugReports: https://github.com/nishi76/ADC_Peptide_Mapper_v1.0/issues
 Depends:
   R (>= 4.2.0)
 Imports:
@@ -25,7 +29,14 @@ Imports:
   stringr (>= 1.5.0),
   dplyr (>= 1.1.0),
   shinyjs (>= 2.1.0),
-  htmltools (>= 0.5.0)
+  htmltools (>= 0.5.0),
+  ggplot2 (>= 3.4.0)
 Suggests:
   shinycssloaders (>= 1.0.0),
-  rsconnect (>= 1.2.0)
+  rsconnect (>= 1.2.0),
+  knitr,
+  rmarkdown,
+  testthat (>= 3.0.0),
+  XML
+VignetteBuilder: knitr
+Config/roxygen2/version: 8.1.0

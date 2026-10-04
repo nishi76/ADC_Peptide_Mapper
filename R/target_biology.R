@@ -1,11 +1,11 @@
-# target_biology.R  —  ADC Peptide Mapper v1.0
+# target_biology.R  -  ADC Peptide Mapper v1.0
 # Internalization scoring and surface accessibility assessment
 
-# ── Internalization database ──────────────────────────────────────────────────
+# -- Internalization database --------------------------------------------------
 
 .internalization_db <- data.table::data.table(
   Target = c(
-    "HER2","EGFR","CD22","CD33","CD19","CD79b","Trop2","FRα","BCMA","HER3",
+    "HER2","EGFR","CD22","CD33","CD19","CD79b","Trop2","FRalpha","BCMA","HER3",
     "Nectin-4","c-MET","CD30","CD138","ROR1","ROR2","AXL","MSLN","CEACAM5",
     "FOLR1","LY6E","PTK7","CD70","ENPP3","LRRC15","CD123","FLT3","CD25",
     "EGFR vIII","EphA2","GD2","TAG-72","MUC16","STEAP1","B7-H3","B7-H4",
@@ -122,8 +122,28 @@
   )
 )
 
-# ── Internalization scoring ───────────────────────────────────────────────────
+# -- Internalization scoring ---------------------------------------------------
 
+#' Score target receptor internalization for ADC payload delivery
+#'
+#' @description Looks up an ADC target by name in a curated internalization
+#'   database (40 validated targets) and returns a numerical score (1-10),
+#'   tier classification, receptor class, mechanism, and key literature
+#'   references. Partial name matching is used when exact lookup fails.
+#'
+#' @param target_name character(1). Target antigen name (e.g. \code{"HER2"},
+#'   \code{"CD22"}, \code{"Trop2"}). Case-insensitive.
+#'
+#' @return Named list with: \code{found} (logical), \code{target}
+#'   (character), \code{score} (integer, 1-10), \code{tier} ("High" /
+#'   "Moderate" / "Low" / "Unknown"), \code{receptor_class}, \code{mechanism},
+#'   \code{literature}, \code{source} ("curated_db" or "not_found").
+#'
+#' @export
+#' @examples
+#' score_internalization("HER2")
+#' score_internalization("Trop2")
+#' score_internalization("GD2")    # low score
 score_internalization <- function(target_name) {
   target_clean <- toupper(trimws(target_name))
   db <- .internalization_db
@@ -162,12 +182,12 @@ score_internalization <- function(target_name) {
   }
 }
 
-# ── Surface accessibility assessment ─────────────────────────────────────────
+# -- Surface accessibility assessment -----------------------------------------
 
 .surface_db <- data.table::data.table(
   Target = c(
     "HER2","EGFR","CD22","CD33","Trop2","BCMA","Nectin-4","HER3","c-MET",
-    "MSLN","FRα","B7-H3","DLL3","CEACAM5","MUC16","STEAP1","CD19","CD79b",
+    "MSLN","FRalpha","B7-H3","DLL3","CEACAM5","MUC16","STEAP1","CD19","CD79b",
     "CD30","CD138","ROR1","AXL","FOLR1","PTK7","CD123","FLT3","PD-L1"
   ),
   Extracellular_domains = c(
@@ -231,6 +251,29 @@ score_internalization <- function(target_name) {
   )
 )
 
+#' Assess target antigen surface accessibility
+#'
+#' @description Looks up a target antigen in a curated surface accessibility
+#'   database (27 validated targets) and returns an accessibility score (0-100),
+#'   tier, number of extracellular domains, transmembrane count, surface
+#'   expression level, and shedding/secretion status. Partial name matching
+#'   is applied when exact lookup fails.
+#'
+#' @param target_name character(1). Target antigen name. Case-insensitive.
+#'
+#' @return Named list with: \code{found} (logical), \code{target},
+#'   \code{accessibility_score} (integer, 0-100),
+#'   \code{accessibility_tier} ("High" / "Moderate" / "Unknown"),
+#'   \code{ec_domains} (integer), \code{tm_count} (integer),
+#'   \code{expression_level} (character), \code{shed_secreted} (logical),
+#'   \code{notes} (character).
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#' assess_surface_accessibility("HER2")
+#' assess_surface_accessibility("MUC16")   # shed antigen, lower score
+#' }
 assess_surface_accessibility <- function(target_name) {
   target_clean <- toupper(trimws(target_name))
   db <- .surface_db

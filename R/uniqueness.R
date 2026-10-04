@@ -1,8 +1,8 @@
 # =============================================================================
-# uniqueness.R — ADC Peptide Mapper v0.8
+# uniqueness.R - ADC Peptide Mapper v0.8
 # =============================================================================
 # Functions for checking peptide uniqueness against background proteomes.
-# Sourced by app.R. No library() calls — depends on data.table loaded by app.
+# Sourced by app.R. No library() calls - depends on data.table loaded by app.
 #
 # Public API
 # ----------
@@ -34,10 +34,10 @@
 # Flag peptides that are NOT present in the background proteome.
 #
 # Args:
-#   sequences    : character vector — peptide sequences to check (uppercase)
-#   bg_dt        : data.table with column "Sequence" — background peptide set
+#   sequences    : character vector - peptide sequences to check (uppercase)
+#   bg_dt        : data.table with column "Sequence" - background peptide set
 #                  (may be NULL or zero-row, in which case all are flagged unique)
-#   il_equivalent: logical(1) — if TRUE (default), treat isoleucine (I) and
+#   il_equivalent: logical(1) - if TRUE (default), treat isoleucine (I) and
 #                  leucine (L) as identical during comparison, matching the
 #                  behaviour of database search engines that cannot distinguish
 #                  I/L by MS/MS alone. Both query sequences and background
@@ -51,6 +51,30 @@
 #     TRUE  = peptide is unique to the ADC (not in background)
 #     FALSE = peptide found in background
 # =============================================================================
+#' Flag peptides absent from a background proteome
+#'
+#' @description Tests each query peptide sequence against a background proteome
+#'   set and returns a logical vector indicating which sequences are unique to
+#'   the ADC (i.e. not present in the background).
+#'
+#' @param sequences character vector. Peptide sequences to test (uppercase).
+#' @param bg_dt data.table or NULL. Background peptide set with a
+#'   \code{Sequence} column. If \code{NULL} or zero rows, all peptides are
+#'   flagged as unique.
+#' @param il_equivalent logical(1). If \code{TRUE} (default), treats
+#'   isoleucine (I) and leucine (L) as identical during comparison, matching
+#'   the behaviour of MS database search engines that cannot distinguish them.
+#'
+#' @return logical vector of the same length as \code{sequences}.
+#'   \code{TRUE} = unique to the ADC; \code{FALSE} = present in background.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   bg <- get_bg_dt(readRDS(system.file("extdata","bg_human.rds",
+#'                   package="ADCPeptideMapper")), 0)
+#'   flag_unique_peptides(c("PEPTIDE","EVQLVESGGG"), bg)
+#' }
 flag_unique_peptides <- function(sequences, bg_dt, il_equivalent = TRUE) {
   if (is.null(bg_dt) || nrow(bg_dt) == 0L) {
     return(rep(TRUE, length(sequences)))
@@ -80,17 +104,17 @@ flag_unique_peptides <- function(sequences, bg_dt, il_equivalent = TRUE) {
 # species at once.
 #
 # Args:
-#   sequences    : character vector — peptide sequences to check (uppercase)
+#   sequences    : character vector - peptide sequences to check (uppercase)
 #   bg_list      : named list of data.tables, each with column "Sequence".
 #                  Names become column names in the result (e.g. "human",
 #                  "monkey", "rat"). May include NULL elements (species not
 #                  loaded); those columns are filled with NA.
-#   il_equivalent: logical(1) — treat I/L as identical (default TRUE).
+#   il_equivalent: logical(1) - treat I/L as identical (default TRUE).
 #                  Forwarded to flag_unique_peptides() for each species.
 #
 # Returns:
 #   data.frame with one column per species (logical: TRUE = unique) PLUS:
-#     UniqueAllSpecies : logical — TRUE iff unique in every non-NULL species
+#     UniqueAllSpecies : logical - TRUE iff unique in every non-NULL species
 #
 # Example:
 #   bg_list <- list(human = get_bg_dt(BUNDLED_BG$human, 0),
@@ -98,6 +122,35 @@ flag_unique_peptides <- function(sequences, bg_dt, il_equivalent = TRUE) {
 #   result  <- flag_cospecies_unique(pep_dt$Sequence, bg_list)
 #   pep_dt  <- cbind(pep_dt, result)
 # =============================================================================
+#' Cross-species uniqueness check against multiple background proteomes
+#'
+#' @description Tests each peptide against multiple background proteomes
+#'   simultaneously. A peptide is co-unique (\code{UniqueAllSpecies = TRUE})
+#'   only if it is absent from every non-NULL species background provided.
+#'   Appropriate for cross-species PK studies (e.g. human/cyno/rat).
+#'
+#' @param sequences character vector. Peptide sequences to test.
+#' @param bg_list named list of data.tables, each with a \code{Sequence}
+#'   column. Names become column names in the result (e.g. \code{"human"},
+#'   \code{"monkey"}, \code{"rat"}). \code{NULL} elements are treated as
+#'   not loaded; the corresponding column is filled with \code{NA}.
+#' @param il_equivalent logical(1). I/L equivalence. Default \code{TRUE}.
+#'   Forwarded to \code{\link{flag_unique_peptides}} for each species.
+#'
+#' @return data.frame with one logical column per species plus
+#'   \code{UniqueAllSpecies} (logical: \code{TRUE} iff unique in every
+#'   non-NULL species).
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   bg <- list(
+#'     human  = get_bg_dt(readRDS(system.file("extdata","bg_human.rds",
+#'                         package="ADCPeptideMapper")), 0),
+#'     monkey = NULL
+#'   )
+#'   flag_cospecies_unique(c("PEPTIDE","EVQLVESGGG"), bg)
+#' }
 flag_cospecies_unique <- function(sequences, bg_list, il_equivalent = TRUE) {
   n <- length(sequences)
   sp_names <- names(bg_list)
@@ -138,17 +191,40 @@ flag_cospecies_unique <- function(sequences, bg_list, il_equivalent = TRUE) {
 #   Format B (bg_sets):               bg_obj$bg_sets[["0"]], [["1"]], [["2"]]
 #
 # Args:
-#   bg_obj          : list — background object loaded from .rds
-#   missed_cleavages: integer(1) — 0, 1, or 2
+#   bg_obj          : list - background object loaded from .rds
+#   missed_cleavages: integer(1) - 0, 1, or 2
 #
 # Returns:
 #   data.table with column "Sequence" (character)
 # =============================================================================
+#' Extract a background peptide data.table from a background object
+#'
+#' @description Retrieves the peptide set for the specified missed-cleavage
+#'   level from a background proteome object loaded from \code{.rds}. Handles
+#'   both Format A (\code{peptides_mc0}/\code{mc1}/\code{mc2}) and Format B
+#'   (\code{bg_sets[["0"]]}/\code{[["1"]]}/\code{[["2"]]}).
+#'
+#' @param bg_obj list. Background object loaded with \code{readRDS()}.
+#' @param missed_cleavages integer(1). Missed cleavage level: 0, 1, or 2.
+#'   Values are clamped to this range.
+#'
+#' @return data.table with a single \code{Sequence} column (uppercase
+#'   character). Returns an empty table if the requested MC level is not
+#'   found, so all peptides will be flagged as unique.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   bg_obj <- readRDS(system.file("extdata","bg_human.rds",
+#'                     package="ADCPeptideMapper"))
+#'   bg_dt  <- get_bg_dt(bg_obj, missed_cleavages = 0)
+#'   nrow(bg_dt)
+#' }
 get_bg_dt <- function(bg_obj, missed_cleavages) {
   mc <- as.integer(missed_cleavages)
   mc <- max(0L, min(2L, mc))   # clamp to 0-2
 
-  # ── Format A: peptides_mc0 / peptides_mc1 / peptides_mc2 ─────────────────
+  # -- Format A: peptides_mc0 / peptides_mc1 / peptides_mc2 -----------------
   mc_key_a <- paste0("peptides_mc", mc)
   if (!is.null(bg_obj[[mc_key_a]])) {
     peps <- bg_obj[[mc_key_a]]
@@ -160,7 +236,7 @@ get_bg_dt <- function(bg_obj, missed_cleavages) {
     }
   }
 
-  # ── Format B: bg_sets[["0"]] / [["1"]] / [["2"]] ─────────────────────────
+  # -- Format B: bg_sets[["0"]] / [["1"]] / [["2"]] -------------------------
   if (!is.null(bg_obj$bg_sets)) {
     mc_key_b <- as.character(mc)
     if (!is.null(bg_obj$bg_sets[[mc_key_b]])) {
@@ -174,7 +250,7 @@ get_bg_dt <- function(bg_obj, missed_cleavages) {
     }
   }
 
-  # ── Fallback: return empty table ──────────────────────────────────────────
+  # -- Fallback: return empty table ------------------------------------------
   message(sprintf(
     "get_bg_dt: could not find peptides for MC=%d in background object. ",
     mc, "Returning empty set (all peptides will be flagged unique)."
@@ -193,17 +269,48 @@ get_bg_dt <- function(bg_obj, missed_cleavages) {
 # ADC sequence, so uniqueness comparisons are enzyme-consistent.
 #
 # Args:
-#   fasta_path       : character(1) — path to FASTA file
-#   missed_cleavages : integer(1)   — 0, 1, or 2 (digest MC level)
-#   enzyme_id        : character(1) — enzyme identifier passed to
+#   fasta_path       : character(1) - path to FASTA file
+#   missed_cleavages : integer(1)   - 0, 1, or 2 (digest MC level)
+#   enzyme_id        : character(1) - enzyme identifier passed to
 #                      enzyme_cleave() (default "trypsin"). Must match
 #                      one of the keys in ENZYME_LABELS.
-#   progress_cb      : function(msg) or NULL — optional progress callback
+#   progress_cb      : function(msg) or NULL - optional progress callback
 #
 # Returns:
 #   list(label, n_proteins, build_date, enzyme_id, bg_sets)
-#   bg_sets is a named list: "0", "1", "2" → data.table(Sequence)
+#   bg_sets is a named list: "0", "1", "2" -> data.table(Sequence)
 # =============================================================================
+#' Build a background proteome object from a FASTA file
+#'
+#' @description Digests all sequences in a FASTA file to build a background
+#'   peptide set for uniqueness filtering. The digest uses the same enzyme as
+#'   the ADC sequence to ensure enzyme-consistent uniqueness comparisons.
+#'   Builds backgrounds at MC levels 0, 1, and 2 in a single call.
+#'
+#' @param fasta_path character(1). Path to a FASTA file on disk.
+#' @param missed_cleavages integer(1). MC level used to select the returned
+#'   set for immediate use. The object contains all three levels regardless.
+#'   Default 0.
+#' @param enzyme_id character(1). Enzyme identifier (see
+#'   \code{\link{ENZYME_LABELS}}). Default \code{"trypsin"}.
+#' @param progress_cb function or NULL. Optional progress callback accepting a
+#'   single character message argument, e.g.
+#'   \code{function(msg) shiny::setProgress(message = msg)}.
+#'
+#' @return Named list with elements: \code{label} (character), \code{n_proteins}
+#'   (integer), \code{build_date} (character), \code{enzyme_id} (character),
+#'   \code{bg_sets} (named list of data.tables keyed \code{"0"}, \code{"1"},
+#'   \code{"2"}).
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   bg <- build_background_from_fasta(
+#'     system.file("extdata","crap.fasta", package="ADCPeptideMapper"),
+#'     enzyme_id = "trypsin"
+#'   )
+#'   nrow(bg$bg_sets[["0"]])
+#' }
 build_background_from_fasta <- function(fasta_path,
                                          missed_cleavages = 0L,
                                          enzyme_id        = "trypsin",
@@ -217,7 +324,7 @@ build_background_from_fasta <- function(fasta_path,
   mc         <- as.integer(missed_cleavages)
   enzyme_id  <- tolower(trimws(enzyme_id))
 
-  # ── Parse FASTA ────────────────────────────────────────────────────────────
+  # -- Parse FASTA ------------------------------------------------------------
   .progress("Parsing FASTA...")
   fasta_text <- paste(readLines(fasta_path, warn = FALSE), collapse = "\n")
   chains     <- parse_fasta(fasta_text)
@@ -229,7 +336,7 @@ build_background_from_fasta <- function(fasta_path,
   n_proteins <- length(chains)
   .progress(sprintf("Parsed %d sequences.", n_proteins))
 
-  # ── Digest at requested enzyme + MC level ─────────────────────────────────
+  # -- Digest at requested enzyme + MC level ---------------------------------
   .progress(sprintf("Digesting with %s at MC=%d...", enzyme_id, mc))
 
   .digest_one_mc <- function(mc_level) {
@@ -239,7 +346,7 @@ build_background_from_fasta <- function(fasta_path,
         enzyme_cleave(seq, enzyme_id = enzyme_id, missed_cleavages = mc_level),
         error = function(e) data.table::data.table(Sequence = character(0))
       )
-      # enzyme_cleave() returns a data.table — extract the Sequence column
+      # enzyme_cleave() returns a data.table - extract the Sequence column
       peps <- pep_dt$Sequence
       peps <- peps[nzchar(peps) & nchar(peps) >= 6L & nchar(peps) <= 30L]
       all_peps <- c(all_peps, peps)

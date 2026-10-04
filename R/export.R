@@ -1,11 +1,11 @@
 # =============================================================================
-# export.R — ADC Peptide Mapper v0.8
+# export.R - ADC Peptide Mapper v0.8
 # =============================================================================
 # Sourced by the Shiny app (server.R). No library() calls here.
 # Depends on:
-#   data.table      — loaded by app
-#   openxlsx        — loaded by app (for write_excel_summary)
-#   transitions.R   — sourced before this file; provides select_top_ions(),
+#   data.table      - loaded by app
+#   openxlsx        - loaded by app (for write_excel_summary)
+#   transitions.R   - sourced before this file; provides select_top_ions(),
 #                     calc_ce_instrument()
 #
 # Public API
@@ -40,11 +40,11 @@
 # Optionally filter a transition data.table to unique-to-ADC peptides only.
 #
 # Args:
-#   dt          : data.table — transition list (must have UniqueToADC column)
-#   unique_only : logical(1) — if TRUE, keep only rows where UniqueToADC == TRUE
+#   dt          : data.table - transition list (must have UniqueToADC column)
+#   unique_only : logical(1) - if TRUE, keep only rows where UniqueToADC == TRUE
 #
 # Returns:
-#   data.table — filtered (or unchanged) copy
+#   data.table - filtered (or unchanged) copy
 # -----------------------------------------------------------------------------
 .apply_unique_filter <- function(dt, unique_only) {
   if (isTRUE(unique_only) && "UniqueToADC" %in% names(dt)) {
@@ -57,7 +57,7 @@
 # -----------------------------------------------------------------------------
 # .apply_top_n_per_precursor()  [internal]
 # -----------------------------------------------------------------------------
-# Keep the top N fragment ions per (PeptideSequence × PrecursorCharge) group,
+# Keep the top N fragment ions per (PeptideSequence ? PrecursorCharge) group,
 # ranked by ProductMz descending (largest product ions first).
 #
 # This is the standard top-N filtering applied by all instrument formatters.
@@ -65,12 +65,12 @@
 # typically give the best signal-to-noise in MRM experiments.
 #
 # Args:
-#   dt    : data.table — must have columns PeptideSequence, PrecursorCharge,
+#   dt    : data.table - must have columns PeptideSequence, PrecursorCharge,
 #                        ProductMz
-#   top_n : integer(1) — maximum ions per precursor group
+#   top_n : integer(1) - maximum ions per precursor group
 #
 # Returns:
-#   data.table — filtered, preserving original column order
+#   data.table - filtered, preserving original column order
 # -----------------------------------------------------------------------------
 .apply_top_n_per_precursor <- function(dt, top_n) {
 
@@ -100,19 +100,35 @@
 # See: https://skyline.ms/wiki/home/software/Skyline/page.view?name=import_transition_list
 #
 # Args:
-#   transition_dt : data.table — full transition list from generate_transition_list()
-#   unique_only   : logical(1) — if TRUE, export only UniqueToADC == TRUE rows
+#   transition_dt : data.table - full transition list from generate_transition_list()
+#   unique_only   : logical(1) - if TRUE, export only UniqueToADC == TRUE rows
 #
 # Returns:
-#   data.frame with Skyline transition list columns (no top-N filtering —
+#   data.frame with Skyline transition list columns (no top-N filtering -
 #   Skyline handles its own peak picking)
 # -----------------------------------------------------------------------------
+#' Format transition list for Skyline import
+#'
+#' @description Converts the internal transition list data.table to a
+#'   data.frame matching the Skyline "Transition List" import column set
+#'   (MacCoss Lab, \url{https://skyline.ms}). No top-N filtering is applied -
+#'   Skyline handles its own peak picking.
+#'
+#' @param transition_dt data.table. Output of \code{\link{generate_transition_list}}.
+#' @param unique_only logical(1). If \code{TRUE}, export only rows where
+#'   \code{UniqueToADC == TRUE}. Default \code{FALSE}.
+#'
+#' @return data.frame with Skyline-compatible column names. Returns an empty
+#'   data.frame if no rows remain after filtering.
+#'
+#' @export
+#' @seealso \code{\link{write_skyline_csv}}, \code{\link{write_instrument_csv}}
 format_skyline_csv <- function(transition_dt, unique_only = FALSE) {
 
   dt <- .apply_unique_filter(transition_dt, unique_only)
 
   if (nrow(dt) == 0L) {
-    warning("format_skyline_csv: no rows after filtering — returning empty data.frame.")
+    warning("format_skyline_csv: no rows after filtering - returning empty data.frame.")
     return(data.frame())
   }
 
@@ -161,12 +177,25 @@ format_skyline_csv <- function(transition_dt, unique_only = FALSE) {
 # Write the Skyline transition list to a temporary CSV file.
 #
 # Args:
-#   transition_dt : data.table — full transition list
-#   unique_only   : logical(1) — filter to unique peptides only
+#   transition_dt : data.table - full transition list
+#   unique_only   : logical(1) - filter to unique peptides only
 #
 # Returns:
-#   character(1) — path to the temporary CSV file
+#   character(1) - path to the temporary CSV file
 # -----------------------------------------------------------------------------
+#' Write Skyline transition list to a temporary CSV file
+#'
+#' @description Calls \code{\link{format_skyline_csv}} and writes the result
+#'   to a temporary CSV file, returning the file path for download handlers.
+#'
+#' @param transition_dt data.table. Output of \code{\link{generate_transition_list}}.
+#' @param unique_only logical(1). Filter to unique-to-ADC peptides only.
+#'   Default \code{FALSE}.
+#'
+#' @return character(1). Path to the written temporary CSV file.
+#'
+#' @export
+#' @seealso \code{\link{format_skyline_csv}}, \code{\link{write_instrument_csv}}
 write_skyline_csv <- function(transition_dt, unique_only = FALSE) {
 
   out_df   <- format_skyline_csv(transition_dt, unique_only = unique_only)
@@ -196,21 +225,35 @@ write_skyline_csv <- function(transition_dt, unique_only = FALSE) {
 # This is written once per unique precursor row.
 #
 # Args:
-#   transition_dt : data.table — full transition list
-#   unique_only   : logical(1) — filter to UniqueToADC == TRUE rows
-#   top_n         : integer(1) — keep top N ions per precursor (default 5),
+#   transition_dt : data.table - full transition list
+#   unique_only   : logical(1) - filter to UniqueToADC == TRUE rows
+#   top_n         : integer(1) - keep top N ions per precursor (default 5),
 #                   ranked by ProductMz descending
 #
 # Returns:
 #   data.frame with Thermo Xcalibur MRM columns
 # -----------------------------------------------------------------------------
+#' Format transition list for Thermo Xcalibur / TSQ import
+#'
+#' @description Formats MRM transitions for import into Thermo Xcalibur as a
+#'   Compound List (SRM method). Applies Thermo-specific CE recalculation and
+#'   top-N ion filtering.
+#'
+#' @param transition_dt data.table. Output of \code{\link{generate_transition_list}}.
+#' @param unique_only logical(1). Filter to unique-to-ADC peptides. Default \code{FALSE}.
+#' @param top_n integer(1). Maximum fragment ions per precursor, ranked by
+#'   product m/z descending. Default 5.
+#'
+#' @return data.frame with Xcalibur MRM columns.
+#'
+#' @export
 format_thermo <- function(transition_dt, unique_only = FALSE, top_n = 5L) {
 
   dt <- .apply_unique_filter(transition_dt, unique_only)
   dt <- .apply_top_n_per_precursor(dt, top_n)
 
   if (nrow(dt) == 0L) {
-    warning("format_thermo: no rows after filtering — returning empty data.frame.")
+    warning("format_thermo: no rows after filtering - returning empty data.frame.")
     return(data.frame())
   }
 
@@ -236,7 +279,7 @@ format_thermo <- function(transition_dt, unique_only = FALSE, top_n = 5L) {
     "Precursor (m/z)"    = round(dt$PrecursorMz, 6),
     "Product (m/z)"      = round(dt$ProductMz, 6),
     "Collision Energy"   = dt$CollisionEnergy,
-    "Start Time (min)"   = 0,          # placeholder — set in Xcalibur method
+    "Start Time (min)"   = 0,          # placeholder - set in Xcalibur method
     "Stop Time (min)"    = 0,          # placeholder
     "Polarity"           = "Positive",
     "Trigger"            = 0.0,
@@ -262,21 +305,34 @@ format_thermo <- function(transition_dt, unique_only = FALSE, top_n = 5L) {
 # software for TripleTOF, QTRAP, and Triple Quad instruments.
 #
 # Args:
-#   transition_dt : data.table — full transition list
-#   unique_only   : logical(1) — filter to UniqueToADC == TRUE rows
-#   top_n         : integer(1) — keep top N ions per precursor (default 5),
+#   transition_dt : data.table - full transition list
+#   unique_only   : logical(1) - filter to UniqueToADC == TRUE rows
+#   top_n         : integer(1) - keep top N ions per precursor (default 5),
 #                   ranked by ProductMz descending
 #
 # Returns:
 #   data.frame with SCIEX Analyst MRM columns
 # -----------------------------------------------------------------------------
+#' Format transition list for SCIEX Analyst MRM import
+#'
+#' @description Formats MRM transitions for SCIEX TripleTOF / QTRAP / Triple
+#'   Quad instruments via Analyst software. Applies SCIEX-specific CE and
+#'   top-N filtering.
+#'
+#' @param transition_dt data.table. Output of \code{\link{generate_transition_list}}.
+#' @param unique_only logical(1). Filter to unique-to-ADC peptides. Default \code{FALSE}.
+#' @param top_n integer(1). Top N ions per precursor. Default 5.
+#'
+#' @return data.frame with SCIEX Analyst MRM columns.
+#'
+#' @export
 format_sciex <- function(transition_dt, unique_only = FALSE, top_n = 5L) {
 
   dt <- .apply_unique_filter(transition_dt, unique_only)
   dt <- .apply_top_n_per_precursor(dt, top_n)
 
   if (nrow(dt) == 0L) {
-    warning("format_sciex: no rows after filtering — returning empty data.frame.")
+    warning("format_sciex: no rows after filtering - returning empty data.frame.")
     return(data.frame())
   }
 
@@ -321,21 +377,33 @@ format_sciex <- function(transition_dt, unique_only = FALSE, top_n = 5L) {
 # and otofControl software for targeted MRM / PRM acquisition.
 #
 # Args:
-#   transition_dt : data.table — full transition list
-#   unique_only   : logical(1) — filter to UniqueToADC == TRUE rows
-#   top_n         : integer(1) — keep top N ions per precursor (default 5),
+#   transition_dt : data.table - full transition list
+#   unique_only   : logical(1) - filter to UniqueToADC == TRUE rows
+#   top_n         : integer(1) - keep top N ions per precursor (default 5),
 #                   ranked by ProductMz descending
 #
 # Returns:
 #   data.frame with Bruker timsControl compound list columns
 # -----------------------------------------------------------------------------
+#' Format transition list for Bruker timsControl / QTOF import
+#'
+#' @description Formats MRM transitions for Bruker timsTOF / EVOQ / QTOF
+#'   instruments. Applies Bruker-specific CE and top-N filtering.
+#'
+#' @param transition_dt data.table. Output of \code{\link{generate_transition_list}}.
+#' @param unique_only logical(1). Filter to unique-to-ADC peptides. Default \code{FALSE}.
+#' @param top_n integer(1). Top N ions per precursor. Default 5.
+#'
+#' @return data.frame with Bruker timsControl compound list columns.
+#'
+#' @export
 format_bruker <- function(transition_dt, unique_only = FALSE, top_n = 5L) {
 
   dt <- .apply_unique_filter(transition_dt, unique_only)
   dt <- .apply_top_n_per_precursor(dt, top_n)
 
   if (nrow(dt) == 0L) {
-    warning("format_bruker: no rows after filtering — returning empty data.frame.")
+    warning("format_bruker: no rows after filtering - returning empty data.frame.")
     return(data.frame())
   }
 
@@ -381,21 +449,33 @@ format_bruker <- function(transition_dt, unique_only = FALSE, top_n = 5L) {
 # MassHunter Workstation for 6400-series QQQ instruments.
 #
 # Args:
-#   transition_dt : data.table — full transition list
-#   unique_only   : logical(1) — filter to UniqueToADC == TRUE rows
-#   top_n         : integer(1) — keep top N ions per precursor (default 5),
+#   transition_dt : data.table - full transition list
+#   unique_only   : logical(1) - filter to UniqueToADC == TRUE rows
+#   top_n         : integer(1) - keep top N ions per precursor (default 5),
 #                   ranked by ProductMz descending
 #
 # Returns:
 #   data.frame with Agilent MassHunter MRM columns
 # -----------------------------------------------------------------------------
+#' Format transition list for Agilent MassHunter / QQQ import
+#'
+#' @description Formats MRM transitions for Agilent 6400-series QQQ instruments
+#'   via MassHunter Workstation. Applies Agilent-specific CE and top-N filtering.
+#'
+#' @param transition_dt data.table. Output of \code{\link{generate_transition_list}}.
+#' @param unique_only logical(1). Filter to unique-to-ADC peptides. Default \code{FALSE}.
+#' @param top_n integer(1). Top N ions per precursor. Default 5.
+#'
+#' @return data.frame with Agilent MassHunter MRM columns.
+#'
+#' @export
 format_agilent <- function(transition_dt, unique_only = FALSE, top_n = 5L) {
 
   dt <- .apply_unique_filter(transition_dt, unique_only)
   dt <- .apply_top_n_per_precursor(dt, top_n)
 
   if (nrow(dt) == 0L) {
-    warning("format_agilent: no rows after filtering — returning empty data.frame.")
+    warning("format_agilent: no rows after filtering - returning empty data.frame.")
     return(data.frame())
   }
 
@@ -443,21 +523,33 @@ format_agilent <- function(transition_dt, unique_only = FALSE, top_n = 5L) {
 # MassLynx software for Xevo TQ-S and Xevo TQ-XS instruments.
 #
 # Args:
-#   transition_dt : data.table — full transition list
-#   unique_only   : logical(1) — filter to UniqueToADC == TRUE rows
-#   top_n         : integer(1) — keep top N ions per precursor (default 5),
+#   transition_dt : data.table - full transition list
+#   unique_only   : logical(1) - filter to UniqueToADC == TRUE rows
+#   top_n         : integer(1) - keep top N ions per precursor (default 5),
 #                   ranked by ProductMz descending
 #
 # Returns:
 #   data.frame with Waters MassLynx MRM columns
 # -----------------------------------------------------------------------------
+#' Format transition list for Waters MassLynx / Xevo TQ import
+#'
+#' @description Formats MRM transitions for Waters Xevo TQ-S and TQ-XS
+#'   instruments via MassLynx. Applies Waters-specific CE and top-N filtering.
+#'
+#' @param transition_dt data.table. Output of \code{\link{generate_transition_list}}.
+#' @param unique_only logical(1). Filter to unique-to-ADC peptides. Default \code{FALSE}.
+#' @param top_n integer(1). Top N ions per precursor. Default 5.
+#'
+#' @return data.frame with Waters MassLynx MRM columns.
+#'
+#' @export
 format_waters <- function(transition_dt, unique_only = FALSE, top_n = 5L) {
 
   dt <- .apply_unique_filter(transition_dt, unique_only)
   dt <- .apply_top_n_per_precursor(dt, top_n)
 
   if (nrow(dt) == 0L) {
-    warning("format_waters: no rows after filtering — returning empty data.frame.")
+    warning("format_waters: no rows after filtering - returning empty data.frame.")
     return(data.frame())
   }
 
@@ -500,26 +592,43 @@ format_waters <- function(transition_dt, unique_only = FALSE, top_n = 5L) {
 # to a temporary CSV file. Returns the path to the file for Shiny download.
 #
 # Args:
-#   transition_dt : data.table — full transition list from generate_transition_list()
-#   instrument    : character(1) — target instrument platform. One of:
+#   transition_dt : data.table - full transition list from generate_transition_list()
+#   instrument    : character(1) - target instrument platform. One of:
 #                     "skyline"  Skyline (no top-N filtering)
 #                     "thermo"   Thermo Xcalibur / TSQ Altis
 #                     "sciex"    SCIEX Analyst / TripleTOF / QTRAP
 #                     "bruker"   Bruker timsControl / QTOF / EVOQ
 #                     "agilent"  Agilent MassHunter / QQQ
 #                     "waters"   Waters MassLynx / Xevo TQ
-#   unique_only   : logical(1) — if TRUE, export only UniqueToADC == TRUE rows
-#   top_n         : integer(1) — top N fragment ions per precursor (default 5).
+#   unique_only   : logical(1) - if TRUE, export only UniqueToADC == TRUE rows
+#   top_n         : integer(1) - top N fragment ions per precursor (default 5).
 #                   Ignored for "skyline" (no top-N filtering applied).
 #
 # Returns:
-#   character(1) — absolute path to the temporary CSV file.
+#   character(1) - absolute path to the temporary CSV file.
 #                  The file is created in the system temp directory and will
 #                  be cleaned up by the OS or Shiny session end.
 #
 # Errors:
 #   Stops with an informative message if `instrument` is not recognised.
 # -----------------------------------------------------------------------------
+#' Format and write a transition list CSV for a specific instrument
+#'
+#' @description Dispatches to the appropriate instrument formatter and writes
+#'   the result to a temporary CSV file. Returns the file path for use in
+#'   Shiny download handlers.
+#'
+#' @param transition_dt data.table. Output of \code{\link{generate_transition_list}}.
+#' @param instrument character(1). Target platform. One of \code{"skyline"},
+#'   \code{"thermo"}, \code{"sciex"}, \code{"bruker"}, \code{"agilent"},
+#'   \code{"waters"}.
+#' @param unique_only logical(1). Export only unique-to-ADC peptides. Default \code{FALSE}.
+#' @param top_n integer(1). Top N fragment ions per precursor (default 5).
+#'   Ignored for \code{"skyline"}.
+#'
+#' @return character(1). Absolute path to the temporary CSV file.
+#'
+#' @export
 write_instrument_csv <- function(transition_dt,
                                  instrument,
                                  unique_only = FALSE,
@@ -575,23 +684,40 @@ write_instrument_csv <- function(transition_dt,
 # results and transition list.
 #
 # Sheets:
-#   1. "Transition List"    — full transition list (all ions, all charges)
-#   2. "Peptide Summary"    — one row per unique peptide with coverage stats
-#   3. "Unique Peptides"    — subset of Peptide Summary for UniqueToADC == TRUE
-#   4. "Instrument Exports" — reference table of supported instruments and
+#   1. "Transition List"    - full transition list (all ions, all charges)
+#   2. "Peptide Summary"    - one row per unique peptide with coverage stats
+#   3. "Unique Peptides"    - subset of Peptide Summary for UniqueToADC == TRUE
+#   4. "Instrument Exports" - reference table of supported instruments and
 #                             their export column formats (v0.6 addition)
 #
 # Args:
-#   transition_dt : data.table — full transition list from generate_transition_list()
-#   peptides_dt   : data.table — peptide table from the digest step (one row
+#   transition_dt : data.table - full transition list from generate_transition_list()
+#   peptides_dt   : data.table - peptide table from the digest step (one row
 #                   per peptide; used to build the Peptide Summary sheet)
-#   unique_only   : logical(1) — if TRUE, the "Transition List" sheet contains
+#   unique_only   : logical(1) - if TRUE, the "Transition List" sheet contains
 #                   only UniqueToADC == TRUE rows (Peptide Summary sheets are
 #                   always complete)
 #
 # Returns:
-#   character(1) — path to the temporary .xlsx file
+#   character(1) - path to the temporary .xlsx file
 # -----------------------------------------------------------------------------
+#' Write a multi-sheet Excel summary of the ADC peptide mapping results
+#'
+#' @description Creates an \code{.xlsx} workbook with four sheets: full
+#'   transition list, peptide summary (one row per peptide), unique peptides
+#'   only, and an instrument export reference table.
+#'
+#' @param transition_dt data.table. Full transition list from
+#'   \code{\link{generate_transition_list}}.
+#' @param peptides_dt data.table. Peptide table from the digest step (one row
+#'   per peptide), used to build the Peptide Summary sheet.
+#' @param unique_only logical(1). When \code{TRUE}, the Transition List sheet
+#'   contains only \code{UniqueToADC == TRUE} rows. Summary sheets are always
+#'   complete. Default \code{FALSE}.
+#'
+#' @return character(1). Path to the temporary \code{.xlsx} file.
+#'
+#' @export
 write_excel_summary <- function(transition_dt,
                                 peptides_dt,
                                 unique_only = FALSE) {

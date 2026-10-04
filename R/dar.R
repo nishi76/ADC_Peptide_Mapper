@@ -1,5 +1,5 @@
 # =============================================================================
-# dar.R — ADC Peptide Mapper v0.8
+# dar.R - ADC Peptide Mapper v0.8
 # =============================================================================
 # Drug-to-Antibody Ratio (DAR) distribution modeling for ADC peptide mapping.
 #
@@ -15,25 +15,25 @@
 # -------
 # A tryptic peptide that contains a conjugation-site residue appears in two
 # forms per site:
-#   DAR=0 (naked):   no payload → mass = peptide_base_mass
-#   DAR=1 (loaded):  one payload → mass = peptide_base_mass + payload_mass
+#   DAR=0 (naked):   no payload -> mass = peptide_base_mass
+#   DAR=1 (loaded):  one payload -> mass = peptide_base_mass + payload_mass
 #
-# Peptides with multiple conjugation residues can carry 0, 1, 2, … payloads.
+# Peptides with multiple conjugation residues can carry 0, 1, 2, ... payloads.
 # The overall antibody DAR is the *sum* of loaded sites across all such
-# peptides — this module models the per-peptide DAR contribution.
+# peptides - this module models the per-peptide DAR contribution.
 #
 # Public API
 # ----------
 #   calc_dar_peptide_masses(sequence, payload_mass, conjugation_sites, dar_range)
-#     → data.table: one row per DAR level showing mass and which sites are loaded
+#     -> data.table: one row per DAR level showing mass and which sites are loaded
 #
 #   generate_dar_transitions(peptides_dt, payload_mass, dar_range,
 #                            conjugation_type, residue, adc_name)
-#     → data.table: full transition list with a DAR column
+#     -> data.table: full transition list with a DAR column
 #
 #   dar_summary_table(peptides_dt, payload_mass, dar_range,
 #                     conjugation_type, residue)
-#     → data.frame: summary of how many peptides contribute at each DAR level
+#     -> data.frame: summary of how many peptides contribute at each DAR level
 # =============================================================================
 
 
@@ -43,28 +43,57 @@
 # Enumerate the mass of a peptide at each DAR level (0 to max conjugation sites).
 #
 # Args:
-#   sequence          : character(1) — single-letter amino acid sequence
-#   payload_mass      : numeric(1)   — mass shift (Da) per conjugated payload
-#   conjugation_sites : integer vector — 1-based positions of conjugation residues
+#   sequence          : character(1) - single-letter amino acid sequence
+#   payload_mass      : numeric(1)   - mass shift (Da) per conjugated payload
+#   conjugation_sites : integer vector - 1-based positions of conjugation residues
 #                       within the peptide.  Use detect_conjugation_sites() to
 #                       obtain this from ADCDB_PAYLOADS fields.
-#   dar_range         : integer vector — DAR levels to include (default 0:4).
+#   dar_range         : integer vector - DAR levels to include (default 0:4).
 #                       Levels above length(conjugation_sites) are silently dropped.
-#   base_mass         : numeric(1) or NULL — pre-computed neutral peptide mass.
+#   base_mass         : numeric(1) or NULL - pre-computed neutral peptide mass.
 #                       If NULL, computed internally via calc_peptide_mass().
 #
 # Returns:
 #   data.table with columns:
-#     Sequence         : character — peptide sequence
-#     DAR              : integer   — drug-to-antibody ratio contribution
+#     Sequence         : character - peptide sequence
+#     DAR              : integer   - drug-to-antibody ratio contribution
 #                                    from this peptide (0 = naked, k = k drugs)
-#     LoadedSites      : character — comma-separated positions carrying payload
+#     LoadedSites      : character - comma-separated positions carrying payload
 #                                    (empty string for DAR=0)
-#     NConjSites       : integer   — total conjugation sites in this peptide
-#     NakedMass        : numeric   — neutral mass of the unloaded peptide
-#     LoadedMass       : numeric   — neutral mass with k * payload_mass added
-#     MassDelta        : numeric   — LoadedMass − NakedMass
+#     NConjSites       : integer   - total conjugation sites in this peptide
+#     NakedMass        : numeric   - neutral mass of the unloaded peptide
+#     LoadedMass       : numeric   - neutral mass with k * payload_mass added
+#     MassDelta        : numeric   - LoadedMass - NakedMass
 # =============================================================================
+#' Enumerate peptide masses at each DAR loading level
+#'
+#' @description Computes the neutral mass of a peptide at every requested DAR
+#'   level (0 = unloaded naked peptide, k = k drug payloads attached). Used
+#'   to build DAR-resolved transition lists for targeted LC-MS/MS.
+#'
+#' @param sequence character(1). Single-letter amino acid sequence.
+#' @param payload_mass numeric(1). Monoisotopic mass shift (Da) contributed by
+#'   one drug-linker unit at a single conjugation site.
+#' @param conjugation_sites integer vector. 1-based positions of conjugatable
+#'   residues within \code{sequence}. Obtain from
+#'   \code{\link{detect_conjugation_sites}}.
+#' @param dar_range integer vector. DAR levels to include. Default
+#'   \code{0:4}. Levels exceeding the number of conjugation sites are silently
+#'   dropped.
+#' @param base_mass numeric(1) or NULL. Pre-computed neutral peptide mass.
+#'   Computed from \code{sequence} via \code{\link{calc_peptide_mass}} if
+#'   \code{NULL}.
+#'
+#' @return data.table with columns: \code{Sequence}, \code{DAR},
+#'   \code{LoadedSites}, \code{NConjSites}, \code{NakedMass},
+#'   \code{LoadedMass}, \code{MassDelta}.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   calc_dar_peptide_masses("TCVAPTEC", payload_mass = 715.3,
+#'                           conjugation_sites = c(1L, 7L))
+#' }
 calc_dar_peptide_masses <- function(sequence,
                                     payload_mass,
                                     conjugation_sites,
@@ -114,8 +143,8 @@ calc_dar_peptide_masses <- function(sequence,
 # a set of peptides that contain conjugation sites.
 #
 # Strategy:
-#   1. Identify which peptides carry ≥1 conjugation site.
-#   2. For each such peptide × DAR level:
+#   1. Identify which peptides carry >=1 conjugation site.
+#   2. For each such peptide ? DAR level:
 #      a. Compute the loaded peptide mass (base + k * payload_mass).
 #      b. Build a synthetic mod_list that adds payload_mass to each loaded site.
 #      c. Call generate_transition_list() to produce the full b/y transition rows.
@@ -123,17 +152,41 @@ calc_dar_peptide_masses <- function(sequence,
 #   3. Peptides with 0 conjugation sites are included once at DAR=0 only.
 #
 # Args:
-#   peptides_dt      : data.table — standard peptide table (from digest + mods)
-#   payload_mass     : numeric(1) — mass shift per payload (Da)
-#   dar_range        : integer vector — DAR levels to generate (default 0:4)
-#   conjugation_type : character(1) — "cysteine" | "lysine" | "site_specific"
-#   residue          : character(1) — conjugation residue ("C" or "K")
-#   adc_name         : character(1) — written to ADCName column (default "")
+#   peptides_dt      : data.table - standard peptide table (from digest + mods)
+#   payload_mass     : numeric(1) - mass shift per payload (Da)
+#   dar_range        : integer vector - DAR levels to generate (default 0:4)
+#   conjugation_type : character(1) - "cysteine" | "lysine" | "site_specific"
+#   residue          : character(1) - conjugation residue ("C" or "K")
+#   adc_name         : character(1) - written to ADCName column (default "")
 #
 # Returns:
-#   data.table — same schema as generate_transition_list() plus a `DAR` column.
+#   data.table - same schema as generate_transition_list() plus a `DAR` column.
 #   Returns an empty table if peptides_dt has no conjugation-site peptides.
 # =============================================================================
+#' Generate a DAR-resolved MRM transition list
+#'
+#' @description Builds a complete MRM transition list across all requested DAR
+#'   levels for every peptide containing at least one conjugation site.
+#'   Peptides with no conjugation sites are included once at DAR = 0.
+#'
+#' @param peptides_dt data.table. Standard peptide table from the digest +
+#'   modifications workflow. Must have the same columns required by
+#'   \code{\link{generate_transition_list}}.
+#' @param payload_mass numeric(1). Mass shift (Da) per drug-linker unit.
+#' @param dar_range integer vector. DAR levels to generate. Default \code{0:4}.
+#' @param conjugation_type character(1). One of \code{"cysteine"},
+#'   \code{"lysine"}, or \code{"site_specific"}.
+#' @param residue character(1). Single-letter code of the conjugation residue
+#'   (\code{"C"} for Cys, \code{"K"} for Lys). Default \code{"C"}.
+#' @param adc_name character(1). ADC product name written to the
+#'   \code{ADCName} column. Default \code{""}.
+#'
+#' @return data.table. Same schema as \code{\link{generate_transition_list}}
+#'   plus a leading \code{DAR} column (integer). Returns an empty table if
+#'   \code{peptides_dt} is empty.
+#'
+#' @export
+#' @seealso \code{\link{generate_transition_list}}, \code{\link{calc_dar_peptide_masses}}
 generate_dar_transitions <- function(peptides_dt,
                                      payload_mass,
                                      dar_range        = 0L:4L,
@@ -223,7 +276,7 @@ generate_dar_transitions <- function(peptides_dt,
 # expected precursor mass range per DAR.
 #
 # Args:
-#   peptides_dt      : data.table — standard peptide table
+#   peptides_dt      : data.table - standard peptide table
 #   payload_mass     : numeric(1)
 #   dar_range        : integer vector
 #   conjugation_type : character(1)
@@ -233,6 +286,29 @@ generate_dar_transitions <- function(peptides_dt,
 #   data.frame with columns: DAR, N_Peptides, MassMin_Da, MassMax_Da,
 #                             TotalPayloadMass_Da
 # =============================================================================
+#' Summarise DAR distribution across a peptide table
+#'
+#' @description Returns a concise summary data.frame showing how many peptides
+#'   contribute at each DAR level and the expected precursor mass range.
+#'
+#' @param peptides_dt data.table. Standard peptide table (with
+#'   \code{PeptideSequence} column).
+#' @param payload_mass numeric(1). Mass shift per drug-linker unit (Da).
+#' @param dar_range integer vector. DAR levels to include. Default \code{0:4}.
+#' @param conjugation_type character(1). One of \code{"cysteine"},
+#'   \code{"lysine"}, or \code{"site_specific"}.
+#' @param residue character(1). Conjugation residue code (\code{"C"} or
+#'   \code{"K"}). Default \code{"C"}.
+#'
+#' @return data.frame with columns: \code{DAR}, \code{N_Peptides},
+#'   \code{MassMin_Da}, \code{MassMax_Da}, \code{TotalPayloadMass_Da}.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   dar_summary_table(pep_dt, payload_mass = 715.3,
+#'                     conjugation_type = "cysteine", residue = "C")
+#' }
 dar_summary_table <- function(peptides_dt,
                                payload_mass,
                                dar_range        = 0L:4L,

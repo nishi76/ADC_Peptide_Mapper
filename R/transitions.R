@@ -1,11 +1,11 @@
 # =============================================================================
-# transitions.R — ADC Peptide Mapper v0.8
+# transitions.R - ADC Peptide Mapper v0.8
 # =============================================================================
 # Sourced by the Shiny app (server.R). No library() calls here.
 # Depends on data.table (loaded by app) and constants from digest.R:
-#   AA_MONO_MASS  — named numeric vector, monoisotopic residue masses (Da)
-#   WATER_MASS    — numeric, 18.010565 Da
-#   PROTON_MASS   — numeric,  1.007276 Da
+#   AA_MONO_MASS  - named numeric vector, monoisotopic residue masses (Da)
+#   WATER_MASS    - numeric, 18.010565 Da
+#   PROTON_MASS   - numeric,  1.007276 Da
 #
 # Public API
 # ----------
@@ -33,16 +33,35 @@
 # Compute the m/z of a protonated precursor ion [M + z*H]^z+.
 #
 # Args:
-#   sequence      : character(1) — single-letter amino acid sequence
-#   charge        : integer(1)   — precursor charge state (e.g. 2, 3, 4)
-#   modifications : numeric or NULL — named numeric vector of additional mass
+#   sequence      : character(1) - single-letter amino acid sequence
+#   charge        : integer(1)   - precursor charge state (e.g. 2, 3, 4)
+#   modifications : numeric or NULL - named numeric vector of additional mass
 #                   shifts keyed by 1-based position strings.
 #                   E.g. c("5" = 57.021464) for carbamidomethyl Cys at pos 5.
 #                   NULL or empty = unmodified peptide.
 #
 # Returns:
-#   numeric(1) — precursor m/z, rounded to 6 decimal places
+#   numeric(1) - precursor m/z, rounded to 6 decimal places
 # -----------------------------------------------------------------------------
+#' Compute precursor ion m/z
+#'
+#' @description Calculates the m/z of a multiply charged protonated precursor
+#'   ion \eqn{[M + zH]^{z+}} for a peptide sequence with optional
+#'   modification mass shifts.
+#'
+#' @param sequence character(1). Single-letter amino acid sequence (uppercase).
+#' @param charge integer(1). Precursor charge state (e.g. 2, 3, 4).
+#' @param modifications numeric vector or NULL. Named numeric vector of mass
+#'   shifts keyed by 1-based position strings. E.g.
+#'   \code{c("5" = 57.021464)} for carbamidomethyl Cys at position 5.
+#'   \code{NULL} or empty means unmodified.
+#'
+#' @return numeric(1). Precursor m/z rounded to 6 decimal places.
+#'
+#' @export
+#' @examples
+#' calc_precursor_mz("PEPTIDE", charge = 2)
+#' calc_precursor_mz("PEPTIDE", charge = 3, modifications = c("3" = 57.02146))
 calc_precursor_mz <- function(sequence, charge, modifications = NULL) {
 
   # Split sequence into individual residues
@@ -53,7 +72,7 @@ calc_precursor_mz <- function(sequence, charge, modifications = NULL) {
     m <- AA_MONO_MASS[aa]
     if (is.na(m)) {
       warning(sprintf(
-        "calc_precursor_mz: unknown amino acid '%s' — mass set to 0", aa
+        "calc_precursor_mz: unknown amino acid '%s' - mass set to 0", aa
       ))
       0
     } else {
@@ -69,7 +88,7 @@ calc_precursor_mz <- function(sequence, charge, modifications = NULL) {
     neutral_mass <- neutral_mass + sum(modifications)
   }
 
-  # [M + z*H]^z+  →  (M + z * proton_mass) / z
+  # [M + z*H]^z+  ->  (M + z * proton_mass) / z
   mz <- (neutral_mass + charge * PROTON_MASS) / charge
 
   round(mz, 6)
@@ -80,18 +99,34 @@ calc_precursor_mz <- function(sequence, charge, modifications = NULL) {
 # calc_ce()
 # -----------------------------------------------------------------------------
 # Empirical collision energy (CE) formula for SCIEX instruments.
-# Kept exactly as in v0.5 — do NOT modify.
+# Kept exactly as in v0.5 - do NOT modify.
 #
 # Charge-dependent linear regression against empirically optimised CEs for
 # tryptic peptides on SCIEX TripleTOF / QTRAP platforms.
 #
 # Args:
-#   precursor_mz : numeric(1) — precursor m/z
-#   charge       : integer(1) — precursor charge state
+#   precursor_mz : numeric(1) - precursor m/z
+#   charge       : integer(1) - precursor charge state
 #
 # Returns:
-#   numeric(1) — CE in eV, rounded to 1 decimal place, floored at 10 eV
+#   numeric(1) - CE in eV, rounded to 1 decimal place, floored at 10 eV
 # -----------------------------------------------------------------------------
+#' Empirical collision energy for SCIEX instruments
+#'
+#' @description Computes the recommended collision energy (CE) for SCIEX
+#'   TripleTOF / QTRAP instruments using charge-dependent linear regression
+#'   against empirically optimised values for tryptic peptides.
+#'
+#' @param precursor_mz numeric(1). Precursor ion m/z.
+#' @param charge integer(1). Precursor charge state.
+#'
+#' @return numeric(1). CE in eV, rounded to 1 decimal place, minimum 10 eV.
+#'
+#' @export
+#' @seealso \code{\link{calc_ce_instrument}} for multi-instrument CE formulas.
+#' @examples
+#' calc_ce(600, charge = 2)
+#' calc_ce(800, charge = 3)
 calc_ce <- function(precursor_mz, charge) {
 
   ce <- switch(as.character(charge),
@@ -131,9 +166,9 @@ calc_ce <- function(precursor_mz, charge) {
 #             Xevo TQ-S empirical CE for tryptic peptides.
 #
 # Args:
-#   precursor_mz : numeric(1) — precursor m/z
-#   charge       : integer(1) — precursor charge state
-#   instrument   : character(1) — one of:
+#   precursor_mz : numeric(1) - precursor m/z
+#   charge       : integer(1) - precursor charge state
+#   instrument   : character(1) - one of:
 #                    "sciex"   SCIEX Analyst / TripleTOF / QTRAP
 #                    "thermo"  Thermo Xcalibur / TSQ Altis / Quantis
 #                    "bruker"  Bruker timsControl / QTOF / EVOQ
@@ -141,8 +176,31 @@ calc_ce <- function(precursor_mz, charge) {
 #                    "waters"  Waters MassLynx / Xevo TQ
 #
 # Returns:
-#   numeric(1) — CE in eV, floored at 10 eV, rounded to 1 decimal place
+#   numeric(1) - CE in eV, floored at 10 eV, rounded to 1 decimal place
 # -----------------------------------------------------------------------------
+#' Instrument-specific empirical collision energy
+#'
+#' @description Computes the recommended collision energy using
+#'   instrument-specific charge-dependent linear formulas. Coefficients are
+#'   empirical approximations intended as method-development starting points.
+#'
+#' @param precursor_mz numeric(1). Precursor ion m/z.
+#' @param charge integer(1). Precursor charge state.
+#' @param instrument character(1). Target instrument platform. One of:
+#'   \code{"sciex"} (SCIEX TripleTOF / QTRAP),
+#'   \code{"thermo"} (Thermo TSQ Altis / Quantis),
+#'   \code{"bruker"} (Bruker timsTOF / EVOQ),
+#'   \code{"agilent"} (Agilent QQQ / QTOF),
+#'   \code{"waters"} (Waters Xevo TQ-S / TQ-XS).
+#'   Defaults to \code{"sciex"}.
+#'
+#' @return numeric(1). CE in eV, floored at 10 eV, rounded to 1 decimal place.
+#'
+#' @export
+#' @seealso \code{\link{calc_ce}} for the SCIEX-only legacy formula.
+#' @examples
+#' calc_ce_instrument(600, charge = 2, instrument = "thermo")
+#' calc_ce_instrument(800, charge = 3, instrument = "bruker")
 calc_ce_instrument <- function(precursor_mz, charge, instrument = "sciex") {
 
   instrument <- tolower(trimws(instrument))
@@ -216,7 +274,7 @@ calc_ce_instrument <- function(precursor_mz, charge, instrument = "sciex") {
     },
 
     # ------------------------------------------------------------------
-    # Unknown instrument — warn and fall back to SCIEX 3+ formula
+    # Unknown instrument - warn and fall back to SCIEX 3+ formula
     # ------------------------------------------------------------------
     {
       warning(sprintf(
@@ -246,10 +304,10 @@ calc_ce_instrument <- function(precursor_mz, charge, instrument = "sciex") {
 #
 # Coverage: b2 through b(L-1) and y2 through y(L-1), singly charged (z=1).
 # For peptides of length >= 15 AA, doubly charged (z=2) fragment ions are
-# also emitted for any 1+ ion with mz > 600 Da — these large fragments are
+# also emitted for any 1+ ion with mz > 600 Da - these large fragments are
 # routinely observed in MRM and improve selectivity for heavy peptides.
 #
-# Terminal ions (b1, y1, bL, yL) are excluded — they are not informative
+# Terminal ions (b1, y1, bL, yL) are excluded - they are not informative
 # in standard MRM workflows and are often outside the instrument scan range.
 #
 # NOTE: a-ions have been removed in v0.6. The `include_a_ions` parameter
@@ -260,22 +318,44 @@ calc_ce_instrument <- function(precursor_mz, charge, instrument = "sciex") {
 #   z=2: mz_2 = (neutral_frag + 2*PROTON_MASS) / 2 = (mz_1 + PROTON_MASS) / 2
 #
 # Args:
-#   sequence      : character(1) — single-letter amino acid sequence
-#   modifications : numeric or NULL — named numeric vector of mass shifts
+#   sequence      : character(1) - single-letter amino acid sequence
+#   modifications : numeric or NULL - named numeric vector of mass shifts
 #                   keyed by 1-based position strings.
 #                   E.g. c("3" = 79.966331) for phospho-Ser at position 3.
 #                   NULL = unmodified.
 #
 # Returns:
 #   data.table with columns:
-#     ion_type   : character — "b" or "y"
-#     ion_number : integer   — position index (2 .. L-1)
-#     charge     : integer   — fragment charge state (1 or 2)
-#     mz         : numeric   — m/z (rounded to 6 dp)
-#     label      : character — e.g. "b3", "y7", "b12++", "y15++"
+#     ion_type   : character - "b" or "y"
+#     ion_number : integer   - position index (2 .. L-1)
+#     charge     : integer   - fragment charge state (1 or 2)
+#     mz         : numeric   - m/z (rounded to 6 dp)
+#     label      : character - e.g. "b3", "y7", "b12++", "y15++"
 #
 #   Returns a zero-row data.table with the same schema if L < 3.
 # -----------------------------------------------------------------------------
+#' Generate b- and y-ion series for a peptide
+#'
+#' @description Calculates the complete singly charged b- and y-ion series
+#'   (b2 through b(L-1), y2 through y(L-1)) for a peptide, with optional
+#'   doubly charged fragment ions for peptides of 15 or more residues.
+#'   a-ions are not calculated.
+#'
+#' @param sequence character(1). Single-letter amino acid sequence.
+#' @param modifications numeric vector or NULL. Named mass-shift vector keyed
+#'   by 1-based position strings (same format as
+#'   \code{\link{calc_precursor_mz}}). \code{NULL} = unmodified.
+#'
+#' @return data.table with columns: \code{ion_type} ("b" or "y"),
+#'   \code{ion_number} (integer), \code{charge} (1 or 2), \code{mz}
+#'   (numeric, 6 dp), \code{label} (character, e.g. \code{"b4"},
+#'   \code{"y11++"}).  Returns a zero-row table for sequences shorter than
+#'   3 residues.
+#'
+#' @export
+#' @examples
+#' ions <- calc_fragment_ions("PEPTIDE")
+#' ions[ion_type == "y"]
 calc_fragment_ions <- function(sequence, modifications = NULL) {
 
   residues <- strsplit(sequence, "", fixed = TRUE)[[1]]
@@ -297,7 +377,7 @@ calc_fragment_ions <- function(sequence, modifications = NULL) {
     m <- AA_MONO_MASS[aa]
     if (is.na(m)) {
       warning(sprintf(
-        "calc_fragment_ions: unknown amino acid '%s' — mass set to 0", aa
+        "calc_fragment_ions: unknown amino acid '%s' - mass set to 0", aa
       ))
       0
     } else {
@@ -348,7 +428,7 @@ calc_fragment_ions <- function(sequence, modifications = NULL) {
   )
 
   # ------------------------------------------------------------------
-  # Doubly charged (z=2) fragment ions — emitted when:
+  # Doubly charged (z=2) fragment ions - emitted when:
   #   (a) peptide length >= 15, AND
   #   (b) the corresponding 1+ ion mz > 600 Da
   # Formula: mz_2 = (mz_1 + PROTON_MASS) / 2
@@ -386,7 +466,7 @@ calc_fragment_ions <- function(sequence, modifications = NULL) {
     }
   }
 
-  # Return all ions — no filtering applied here
+  # Return all ions - no filtering applied here
   data.table::rbindlist(ions_list)
 }
 
@@ -400,21 +480,46 @@ calc_fragment_ions <- function(sequence, modifications = NULL) {
 # instrument top-N filtering. It is NOT called inside generate_transition_list().
 #
 # Args:
-#   ions_dt    : data.table — must contain either:
+#   ions_dt    : data.table - must contain either:
 #                  - column "ProductMz"  (transition list context), or
 #                  - column "mz"         (raw fragment ion context)
 #                and optionally "ion_number" for non-mz ranking.
-#   top_n      : integer(1) — number of ions to keep (default 5).
+#   top_n      : integer(1) - number of ions to keep (default 5).
 #                If top_n >= nrow(ions_dt), all rows are returned unchanged.
-#   by_mz_desc : logical(1) — ranking strategy:
-#                  TRUE  (default) — rank by m/z descending (largest product
+#   by_mz_desc : logical(1) - ranking strategy:
+#                  TRUE  (default) - rank by m/z descending (largest product
 #                         ions first; preferred for MRM sensitivity)
-#                  FALSE           — rank by ion_number descending (longest
+#                  FALSE           - rank by ion_number descending (longest
 #                         sequence coverage first)
 #
 # Returns:
-#   data.table — subset of ions_dt, at most top_n rows, in ranked order
+#   data.table - subset of ions_dt, at most top_n rows, in ranked order
 # -----------------------------------------------------------------------------
+#' Select the top N fragment ions from an ion data.table
+#'
+#' @description Utility function to apply per-precursor top-N ion filtering.
+#'   Used by the instrument export formatters in \code{export.R}. Not called
+#'   internally by \code{\link{generate_transition_list}}.
+#'
+#' @param ions_dt data.table. Must contain either a \code{ProductMz} column
+#'   (transition list context) or an \code{mz} column (raw fragment ion
+#'   context), and optionally an \code{ion_number} column.
+#' @param top_n integer(1). Number of ions to retain. Default 5. Returns all
+#'   rows unchanged if \code{top_n >= nrow(ions_dt)}.
+#' @param by_mz_desc logical(1). Ranking strategy. \code{TRUE} (default)
+#'   ranks by m/z descending (largest product ions first, preferred for MRM
+#'   sensitivity). \code{FALSE} ranks by \code{ion_number} descending
+#'   (longest sequence coverage first).
+#'
+#' @return data.table. Subset of \code{ions_dt} with at most \code{top_n} rows
+#'   in ranked order.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   ions <- calc_fragment_ions("EVQLVESGGG")
+#'   select_top_ions(ions, top_n = 3)
+#' }
 select_top_ions <- function(ions_dt, top_n = 5L, by_mz_desc = TRUE) {
 
   if (is.null(ions_dt) || nrow(ions_dt) == 0L) return(ions_dt)
@@ -423,7 +528,7 @@ select_top_ions <- function(ions_dt, top_n = 5L, by_mz_desc = TRUE) {
   if (top_n <= 0L) return(ions_dt[0L])
   if (top_n >= nrow(ions_dt)) return(ions_dt)   # nothing to filter
 
-  # Determine sort column — prefer transition-list names over raw names
+  # Determine sort column - prefer transition-list names over raw names
   sort_col <- if (by_mz_desc) {
     if ("ProductMz"  %in% names(ions_dt)) "ProductMz"  else "mz"
   } else {
@@ -441,7 +546,7 @@ select_top_ions <- function(ions_dt, top_n = 5L, by_mz_desc = TRUE) {
 # -----------------------------------------------------------------------------
 # Build the full MRM transition list for a set of peptides.
 #
-# For each peptide × precursor charge (2+, 3+, 4+) × fragment ion
+# For each peptide ? precursor charge (2+, 3+, 4+) ? fragment ion
 # (b2..b(n-1), y2..y(n-1)), one row is emitted.
 # Fragment ions are singly charged (z=1) for all peptides; for peptides
 # >= 15 residues, doubly charged (z=2) fragments with 1+ mz > 600 are
@@ -451,7 +556,7 @@ select_top_ions <- function(ions_dt, top_n = 5L, by_mz_desc = TRUE) {
 # Instrument-specific export functions in export.R apply their own filtering.
 #
 # Args:
-#   peptides_dt : data.table — one row per peptide, required columns:
+#   peptides_dt : data.table - one row per peptide, required columns:
 #
 #     Column            Type       Description
 #     ----------------  ---------  ------------------------------------------
@@ -469,11 +574,11 @@ select_top_ions <- function(ions_dt, top_n = 5L, by_mz_desc = TRUE) {
 #                                  numeric vector of mass shifts by position
 #                                  (NULL element = unmodified peptide)
 #
-#   adc_name    : character(1) — ADC product name written to ADCName column.
+#   adc_name    : character(1) - ADC product name written to ADCName column.
 #                 Default "".
 #
 # Returns:
-#   data.table with one row per (peptide × charge × fragment ion):
+#   data.table with one row per (peptide ? charge ? fragment ion):
 #
 #     Column            Type       Description
 #     ----------------  ---------  ------------------------------------------
@@ -495,12 +600,44 @@ select_top_ions <- function(ions_dt, top_n = 5L, by_mz_desc = TRUE) {
 #     End               integer    1-based end position
 #     Enzyme            character  Digestion enzyme name
 # -----------------------------------------------------------------------------
+#' Build the full MRM transition list for a set of peptides
+#'
+#' @description For each peptide in \code{peptides_dt}, generates all b- and
+#'   y-ion MRM transitions at precursor charge states 2+, 3+, and 4+. No
+#'   top-N filtering is applied; instrument-specific export functions handle
+#'   filtering downstream.
+#'
+#' @param peptides_dt data.table. One row per peptide. Required columns:
+#'   \code{PeptideSequence}, \code{ModifiedSequence}, \code{ProteinName},
+#'   \code{Chain}, \code{Modifications}, \code{UniqueToADC}, \code{Start},
+#'   \code{End}, \code{Enzyme}. Optional: \code{mod_list} (list column of
+#'   named mass-shift vectors).
+#' @param adc_name character(1). ADC product name written to the
+#'   \code{ADCName} column. Default \code{""}.
+#'
+#' @return data.table with one row per (peptide ? charge ? fragment ion)
+#'   combination. Columns: \code{ADCName}, \code{ProteinName}, \code{Chain},
+#'   \code{PeptideSequence}, \code{ModifiedSequence}, \code{PrecursorCharge},
+#'   \code{PrecursorMz}, \code{ProductCharge}, \code{ProductMz},
+#'   \code{FragmentIon}, \code{CollisionEnergy}, \code{Modifications},
+#'   \code{UniqueToADC}, \code{PeptideLength}, \code{Start}, \code{End},
+#'   \code{Enzyme}.
+#'
+#' @export
+#' @seealso \code{\link{generate_dar_transitions}},
+#'   \code{\link{write_instrument_csv}}, \code{\link{format_skyline_csv}}
+#' @examples
+#' \dontrun{
+#'   pep_dt <- digest_fasta_enzyme(fasta, enzyme_id = "trypsin")
+#'   # ... add required columns (ModifiedSequence, ProteinName, etc.)
+#'   transitions <- generate_transition_list(pep_dt, adc_name = "MyADC-001")
+#' }
 generate_transition_list <- function(peptides_dt, adc_name = "") {
 
   # ---- Input validation ----------------------------------------------------
 
   if (is.null(peptides_dt) || nrow(peptides_dt) == 0L) {
-    message("generate_transition_list: empty peptides_dt — returning empty table.")
+    message("generate_transition_list: empty peptides_dt - returning empty table.")
     return(.empty_transition_table())
   }
 
@@ -524,7 +661,7 @@ generate_transition_list <- function(peptides_dt, adc_name = "") {
   # Precursor charge states to generate for every peptide
   precursor_charges <- c(2L, 3L, 4L)
 
-  # Pre-allocate list; upper bound = n_peptides × n_charges
+  # Pre-allocate list; upper bound = n_peptides ? n_charges
   all_blocks <- vector("list", nrow(peptides_dt) * length(precursor_charges))
   block_idx  <- 0L
 
@@ -542,7 +679,7 @@ generate_transition_list <- function(peptides_dt, adc_name = "") {
     # Skip peptides that produce no fragment ions (sequence length < 3)
     if (nrow(frag_ions) == 0L) {
       message(sprintf(
-        "generate_transition_list: peptide '%s' is too short for fragment ions — skipped.",
+        "generate_transition_list: peptide '%s' is too short for fragment ions - skipped.",
         seq_str
       ))
       next
@@ -560,7 +697,7 @@ generate_transition_list <- function(peptides_dt, adc_name = "") {
       # export.R recalculates CE per instrument when writing instrument files
       ce <- calc_ce(prec_mz, z)
 
-      # Build one data.table block for this peptide × charge combination
+      # Build one data.table block for this peptide ? charge combination
       # (one row per fragment ion; ProductCharge comes from calc_fragment_ions)
       block <- data.table::data.table(
         ADCName          = rep(adc_name,                 n_frags),
@@ -611,7 +748,7 @@ generate_transition_list <- function(peptides_dt, adc_name = "") {
 
 
 # -----------------------------------------------------------------------------
-# .empty_transition_table()  [internal helper — not exported]
+# .empty_transition_table()  [internal helper - not exported]
 # -----------------------------------------------------------------------------
 # Returns a zero-row data.table with the canonical transition list schema.
 # Used as a safe return value when no transitions can be generated.

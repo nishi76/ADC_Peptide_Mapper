@@ -1,9 +1,17 @@
-# ADC Peptide Mapper v0.8
+# ADC Peptide Mapper v1.0
 
-**7-tab R Shiny application** — In-silico proteolytic digest, uniqueness checking, DAR distribution modeling, linker biotransformation variable modifications, instrument-specific transition list export, heavy labelling, MS/MS search confirmation, and an AI-powered assistant for Antibody-Drug Conjugates.
+**12-tab R Shiny application** -- In-silico proteolytic digest, uniqueness checking, DAR distribution modeling, linker biotransformation variable modifications, instrument-specific transition list export, heavy labelling, MS/MS search confirmation, ADC design, antibody characterization, target biology scoring, and an AI-powered assistant for Antibody-Drug Conjugates.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20681412.svg)](https://doi.org/10.5281/zenodo.20681412)
+
+## Installation
+
+```r
+# install.packages("remotes")
+remotes::install_github("nishi76/ADC_Peptide_Mapper_v1.0")
+ADCPeptideMapper::run_app()
+```
 
 ---
 

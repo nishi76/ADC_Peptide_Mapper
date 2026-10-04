@@ -1,20 +1,20 @@
 # =============================================================================
-# digest.R  —  ADC Peptide Mapper v0.8
+# digest.R  -  ADC Peptide Mapper v0.8
 # =============================================================================
-# Sourced by app.R.  No library() calls here — all packages (data.table, etc.)
+# Sourced by app.R.  No library() calls here - all packages (data.table, etc.)
 # are loaded in app.R before this file is sourced.
 #
 # Contents
 # --------
 #   1. Mass constants
-#   2. ENZYME_LABELS  — human-readable names for the 9 supported enzymes
-#   3. parse_fasta()              — FASTA text → named character vector
-#   4. calc_peptide_mass()        — monoisotopic neutral mass of a peptide
-#   5. filter_peptides_by_length()— keep peptides within [min_len, max_len]
-#   6. enzyme_cleave()            — generic in-silico digest (9 enzymes)
-#   7. trypsin_cleave()           — backward-compat alias → enzyme_cleave()
-#   8. digest_fasta_enzyme()      — digest a full FASTA with one or two enzymes
-#   9. digest_fasta()             — backward-compat wrapper → digest_fasta_enzyme()
+#   2. ENZYME_LABELS  - human-readable names for the 9 supported enzymes
+#   3. parse_fasta()              - FASTA text -> named character vector
+#   4. calc_peptide_mass()        - monoisotopic neutral mass of a peptide
+#   5. filter_peptides_by_length()- keep peptides within [min_len, max_len]
+#   6. enzyme_cleave()            - generic in-silico digest (9 enzymes)
+#   7. trypsin_cleave()           - backward-compat alias -> enzyme_cleave()
+#   8. digest_fasta_enzyme()      - digest a full FASTA with one or two enzymes
+#   9. digest_fasta()             - backward-compat wrapper -> digest_fasta_enzyme()
 # =============================================================================
 
 
@@ -22,7 +22,17 @@
 # 1.  Mass constants
 # -----------------------------------------------------------------------------
 
-## Monoisotopic residue masses (Da) for the 20 standard amino acids.
+#' Monoisotopic residue masses for the 20 standard amino acids
+#'
+#' @description Named numeric vector of monoisotopic residue masses (Da) for
+#'   all 20 standard amino acids. Keys are single-letter codes (uppercase).
+#'   Used throughout the mass calculation functions in this package.
+#'
+#' @format A named numeric vector of length 20.
+#' @export
+#' @examples
+#' AA_MONO_MASS["K"]  # lysine residue mass
+#' sum(AA_MONO_MASS[c("A","K","L")]) + WATER_MASS  # AKL peptide neutral mass
 AA_MONO_MASS <- c(
   A =  71.03711,  R = 156.10111,  N = 114.04293,  D = 115.02694,
   C = 103.00919,  E = 129.04259,  Q = 128.05858,  G =  57.02146,
@@ -31,7 +41,18 @@ AA_MONO_MASS <- c(
   T = 101.04768,  W = 186.07931,  Y = 163.06333,  V =  99.06841
 )
 
+#' Mass of water (Da)
+#' @description Monoisotopic mass of water (H2O), used to compute peptide
+#'   neutral masses and y-ion series.
+#' @format A numeric scalar.
+#' @export
 WATER_MASS  <- 18.01056
+
+#' Mass of a proton (Da)
+#' @description Monoisotopic mass of a proton (H+), used to convert neutral
+#'   masses to m/z values for protonated ions.
+#' @format A numeric scalar.
+#' @export
 PROTON_MASS <-  1.007276
 
 
@@ -39,6 +60,17 @@ PROTON_MASS <-  1.007276
 # 2.  ENZYME_LABELS
 # -----------------------------------------------------------------------------
 
+#' Human-readable labels for all supported proteolytic enzymes
+#'
+#' @description Named character vector mapping internal enzyme identifiers to
+#'   human-readable display names. Used to populate the enzyme selector UI
+#'   and to label the \code{Enzyme} column in digest output tables.
+#'
+#' @format A named character vector with 11 elements.
+#' @export
+#' @examples
+#' ENZYME_LABELS["trypsin"]
+#' names(ENZYME_LABELS)
 ENZYME_LABELS <- c(
   trypsin      = "Trypsin (K/R, not P)",
   trypsin_p    = "Trypsin/P (K/R, incl. P)",
@@ -58,6 +90,26 @@ ENZYME_LABELS <- c(
 # 3.  parse_fasta()
 # -----------------------------------------------------------------------------
 
+#' Parse a FASTA text string into a named character vector
+#'
+#' @description Splits the contents of a FASTA file (provided as a single
+#'   string) into a named character vector where names are the sequence
+#'   headers and values are the uppercase amino acid sequences.
+#'
+#' @param fasta_text character(1). Full contents of a FASTA file as a single
+#'   string. Accepts both Unix (\code{\\n}) and Windows (\code{\\r\\n}) line endings.
+#'
+#' @return A named character vector. Names are the header lines (without the
+#'   leading \code{>}), values are uppercase sequences with whitespace removed.
+#'   Returns a zero-length named character vector if the input is empty or
+#'   contains no valid headers.
+#'
+#' @export
+#' @examples
+#' fasta <- ">Heavy chain\nEVQLVESGGGLVQPGGSLR\n>Light chain\nDIQMTQSPS"
+#' seqs <- parse_fasta(fasta)
+#' names(seqs)
+#' nchar(seqs)
 parse_fasta <- function(fasta_text) {
   if (is.null(fasta_text) || length(fasta_text) == 0L ||
       !nzchar(trimws(fasta_text))) {
@@ -81,6 +133,23 @@ parse_fasta <- function(fasta_text) {
 # 4.  calc_peptide_mass()
 # -----------------------------------------------------------------------------
 
+#' Compute the monoisotopic neutral mass of a peptide
+#'
+#' @description Calculates the neutral monoisotopic mass of a peptide from its
+#'   single-letter amino acid sequence using the residue masses in
+#'   \code{\link{AA_MONO_MASS}} and adding one water molecule for the
+#'   N- and C-terminal groups.
+#'
+#' @param sequence character(1). Single-letter amino acid sequence (uppercase).
+#'
+#' @return numeric(1). Monoisotopic neutral mass in Da. Returns \code{NA_real_}
+#'   for \code{NULL} or zero-length input. Unknown amino acid codes contribute
+#'   a mass of 0.
+#'
+#' @export
+#' @examples
+#' calc_peptide_mass("PEPTIDE")   # ~799.36 Da
+#' calc_peptide_mass("EVQLVESGGG")
 calc_peptide_mass <- function(sequence) {
   if (is.null(sequence) || !nzchar(sequence)) return(NA_real_)
   residues <- strsplit(sequence, "", fixed = TRUE)[[1L]]
@@ -94,6 +163,25 @@ calc_peptide_mass <- function(sequence) {
 # 5.  filter_peptides_by_length()
 # -----------------------------------------------------------------------------
 
+#' Filter a peptide data.table by sequence length
+#'
+#' @description Keeps only rows whose \code{Length} column falls within
+#'   \code{[min_len, max_len]}. Passes through \code{NULL} or empty tables
+#'   unchanged.
+#'
+#' @param dt data.table. Must contain an integer \code{Length} column.
+#' @param min_len integer(1). Minimum peptide length (inclusive). Default 6.
+#' @param max_len integer(1). Maximum peptide length (inclusive). Default 30.
+#'
+#' @return data.table. Subset of \code{dt} containing only rows where
+#'   \code{min_len <= Length <= max_len}.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   pep_dt <- digest_fasta_enzyme(fasta, min_len = 1, max_len = 50)
+#'   filtered <- filter_peptides_by_length(pep_dt, min_len = 7, max_len = 25)
+#' }
 filter_peptides_by_length <- function(dt, min_len = 6L, max_len = 30L) {
   if (is.null(dt) || nrow(dt) == 0L) return(dt)
   dt[Length >= min_len & Length <= max_len]
@@ -104,6 +192,35 @@ filter_peptides_by_length <- function(dt, min_len = 6L, max_len = 30L) {
 # 6.  enzyme_cleave()
 # -----------------------------------------------------------------------------
 
+#' In-silico proteolytic digest of a single protein sequence
+#'
+#' @description Performs a theoretical (in-silico) proteolytic digest of a
+#'   single amino acid sequence using one of 11 supported enzymes. Returns a
+#'   data.table of peptide fragments, optionally including missed cleavages.
+#'
+#' @param sequence character(1). Single-letter amino acid sequence (uppercase).
+#' @param enzyme_id character(1). Enzyme identifier. One of:
+#'   \code{"trypsin"}, \code{"trypsin_p"}, \code{"lysc"}, \code{"lysc_p"},
+#'   \code{"lysn"}, \code{"aspn"}, \code{"gluc"}, \code{"argc"},
+#'   \code{"chymotrypsin"}, \code{"papain"}, \code{"elastase"}.
+#'   See \code{\link{ENZYME_LABELS}} for human-readable names.
+#' @param missed_cleavages integer(1). Number of missed cleavages to include
+#'   (0 = fully digested, 1 = one internal cleavage site missed, etc.).
+#'   Default 0.
+#'
+#' @return data.table with columns:
+#'   \describe{
+#'     \item{Sequence}{character. Peptide amino acid sequence.}
+#'     \item{Start}{integer. 1-based start position in the parent protein.}
+#'     \item{End}{integer. 1-based end position.}
+#'     \item{Length}{integer. Number of residues.}
+#'     \item{MC}{integer. Number of missed cleavages for this peptide.}
+#'   }
+#'
+#' @export
+#' @examples
+#' enzyme_cleave("MEPEPTIDEKRPEPTIDE", enzyme_id = "trypsin", missed_cleavages = 0)
+#' enzyme_cleave("MEPEPTIDEKRPEPTIDE", enzyme_id = "trypsin", missed_cleavages = 1)
 enzyme_cleave <- function(sequence, enzyme_id = "trypsin", missed_cleavages = 0L) {
 
   empty_dt <- data.table(
@@ -239,9 +356,23 @@ enzyme_cleave <- function(sequence, enzyme_id = "trypsin", missed_cleavages = 0L
 
 
 # -----------------------------------------------------------------------------
-# 7.  trypsin_cleave()  — backward-compatibility alias
+# 7.  trypsin_cleave()  - backward-compatibility alias
 # -----------------------------------------------------------------------------
 
+#' Trypsin digest (backward-compatibility alias)
+#'
+#' @description Convenience wrapper that calls \code{\link{enzyme_cleave}} with
+#'   \code{enzyme_id = "trypsin"}. Kept for backward compatibility.
+#'
+#' @param sequence character(1). Single-letter amino acid sequence.
+#' @param missed_cleavages integer(1). Number of missed cleavages. Default 0.
+#'
+#' @return data.table. Same schema as \code{\link{enzyme_cleave}}.
+#'
+#' @export
+#' @seealso \code{\link{enzyme_cleave}}, \code{\link{digest_fasta_enzyme}}
+#' @examples
+#' trypsin_cleave("MEPEPTIDEKRPEPTIDE")
 trypsin_cleave <- function(sequence, missed_cleavages = 0L) {
   enzyme_cleave(sequence, enzyme_id="trypsin", missed_cleavages=missed_cleavages)
 }
@@ -251,6 +382,33 @@ trypsin_cleave <- function(sequence, missed_cleavages = 0L) {
 # 8.  digest_fasta_enzyme()
 # -----------------------------------------------------------------------------
 
+#' Digest all sequences in a FASTA string with one or two enzymes
+#'
+#' @description Parses a multi-sequence FASTA text and performs in-silico
+#'   proteolytic digestion of every chain. Supports single-enzyme digestion and
+#'   sequential two-enzyme digestion (pass 1 with \code{enzyme_id}, pass 2 with
+#'   \code{enzyme_id2}).
+#'
+#' @param fasta_text character(1). Full FASTA file contents as a single string.
+#' @param enzyme_id character(1). Primary enzyme identifier (see
+#'   \code{\link{ENZYME_LABELS}}). Default \code{"trypsin"}.
+#' @param enzyme_id2 character(1) or NULL. Optional second enzyme for
+#'   sequential two-enzyme digestion. \code{NULL} (default) uses only
+#'   \code{enzyme_id}.
+#' @param missed_cleavages integer(1). Missed cleavages allowed. Default 0.
+#' @param min_len integer(1). Minimum peptide length to retain. Default 6.
+#' @param max_len integer(1). Maximum peptide length to retain. Default 30.
+#'
+#' @return data.table with columns: \code{Chain}, \code{Sequence},
+#'   \code{Start}, \code{End}, \code{Length}, \code{Mass}, \code{Enzyme},
+#'   and optionally \code{MC}. Returns an empty table if no sequences or no
+#'   peptides pass length filters.
+#'
+#' @export
+#' @examples
+#' fasta <- paste0(">Heavy\nEVQLVESGGGLVQPGGSLRLSCAAS",
+#'                 "\n>Light\nDIQMTQSPSSLSASVGDRVTITC")
+#' digest_fasta_enzyme(fasta, enzyme_id = "trypsin", missed_cleavages = 1)
 digest_fasta_enzyme <- function(fasta_text,
                                 enzyme_id        = "trypsin",
                                 enzyme_id2       = NULL,
@@ -333,9 +491,23 @@ digest_fasta_enzyme <- function(fasta_text,
 
 
 # -----------------------------------------------------------------------------
-# 9.  digest_fasta()  — backward-compatibility wrapper
+# 9.  digest_fasta()  - backward-compatibility wrapper
 # -----------------------------------------------------------------------------
 
+#' Tryptic digest of a FASTA string (backward-compatibility wrapper)
+#'
+#' @description Calls \code{\link{digest_fasta_enzyme}} with
+#'   \code{enzyme_id = "trypsin"}. Preserved for backward compatibility.
+#'
+#' @param fasta_text character(1). FASTA file contents as a single string.
+#' @param missed_cleavages integer(1). Default 0.
+#' @param min_len integer(1). Minimum peptide length. Default 6.
+#' @param max_len integer(1). Maximum peptide length. Default 30.
+#'
+#' @return data.table. Same schema as \code{\link{digest_fasta_enzyme}}.
+#'
+#' @export
+#' @seealso \code{\link{digest_fasta_enzyme}}
 digest_fasta <- function(fasta_text, missed_cleavages=0L, min_len=6L, max_len=30L) {
   digest_fasta_enzyme(fasta_text, enzyme_id="trypsin", enzyme_id2=NULL,
                       missed_cleavages=missed_cleavages, min_len=min_len, max_len=max_len)

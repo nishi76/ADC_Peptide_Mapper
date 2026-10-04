@@ -1,5 +1,5 @@
 # =============================================================================
-# modifications.R — ADC Peptide Mapper v0.8
+# modifications.R - ADC Peptide Mapper v0.8
 # =============================================================================
 # Sourced by the Shiny app (app.R / server.R). No library() calls; base R only.
 #
@@ -8,19 +8,19 @@
 # Do NOT redefine them here.
 #
 # Contents:
-#   1.  FIXED_MODS                  — always-on modifications (e.g. CAM on Cys)
-#   2.  ADCDB_PAYLOADS              — curated ADC payload database (with conjugation_type)
-#   3.  ADCDB_LINKERS               — curated ADC linker database (ADCDB-sourced)
-#   3b. LINKER_BIOTRANSFORMATIONS   — in vivo/vitro linker biotransformation products
-#   4.  VAR_MOD_DEFS                — variable modification definitions (incl. ADCDB payloads
+#   1.  FIXED_MODS                  - always-on modifications (e.g. CAM on Cys)
+#   2.  ADCDB_PAYLOADS              - curated ADC payload database (with conjugation_type)
+#   3.  ADCDB_LINKERS               - curated ADC linker database (ADCDB-sourced)
+#   3b. LINKER_BIOTRANSFORMATIONS   - in vivo/vitro linker biotransformation products
+#   4.  VAR_MOD_DEFS                - variable modification definitions (incl. ADCDB payloads
 #                                     and biotr_ entries from LINKER_BIOTRANSFORMATIONS)
-#   5.  SPECIAL_MOD_DEFS            — special / non-residue modifications
-#   6.  calc_modified_mass()        — compute peptide mass with active mods applied
-#   7.  build_active_mods()         — assemble the active mod list from UI selections
-#   8.  apply_modifications()       — apply mods to a peptide sequence, return mod table
-#   9.  get_payload_choices()       — helper for Shiny selectInput() grouped choices
-#  10.  detect_conjugation_sites()  — T3-B: find conjugation-capable residues in a peptide
-#  11.  has_conjugation_site()      — T3-B: convenience wrapper
+#   5.  SPECIAL_MOD_DEFS            - special / non-residue modifications
+#   6.  calc_modified_mass()        - compute peptide mass with active mods applied
+#   7.  build_active_mods()         - assemble the active mod list from UI selections
+#   8.  apply_modifications()       - apply mods to a peptide sequence, return mod table
+#   9.  get_payload_choices()       - helper for Shiny selectInput() grouped choices
+#  10.  detect_conjugation_sites()  - T3-B: find conjugation-capable residues in a peptide
+#  11.  has_conjugation_site()      - T3-B: convenience wrapper
 # =============================================================================
 
 
@@ -29,18 +29,18 @@
 # -----------------------------------------------------------------------------
 # Fixed mods are applied unconditionally to every matching residue.
 # Each entry:
-#   residue  — single-letter AA code the mod targets
-#   name     — human-readable label
-#   mass     — monoisotopic mass shift (Da) added to the residue
-#   nterm    — logical; TRUE means only apply at peptide N-terminus
-#   location — positional constraint: "any" | "nterm" | "cterm" | "<int>"
+#   residue  - single-letter AA code the mod targets
+#   name     - human-readable label
+#   mass     - monoisotopic mass shift (Da) added to the residue
+#   nterm    - logical; TRUE means only apply at peptide N-terminus
+#   location - positional constraint: "any" | "nterm" | "cterm" | "<int>"
 #              (built-in fixed mods default to "any")
 
 FIXED_MODS <- list(
   CAM = list(
     residue  = "C",
     name     = "Carbamidomethyl (CAM)",
-    mass     = 57.02146,   # C2H3NO — iodoacetamide alkylation of Cys thiol
+    mass     = 57.02146,   # C2H3NO - iodoacetamide alkylation of Cys thiol
     nterm    = FALSE,
     location = "any"
   )
@@ -50,26 +50,26 @@ FIXED_MODS <- list(
 # -----------------------------------------------------------------------------
 # 2. ADCDB PAYLOAD DATABASE
 # -----------------------------------------------------------------------------
-# Curated from https://adcdb.idrblab.net — the ADC Database.
+# Curated from https://adcdb.idrblab.net - the ADC Database.
 # Each entry represents the cytotoxic payload component of a clinical or
 # approved ADC.  The `mass` field is the monoisotopic (or best-available)
 # mass shift (Da) that the payload contributes at the conjugation site on
 # the antibody/peptide.
 #
 # Fields:
-#   name             — full descriptive name
-#   abbrev           — short abbreviation used in labels / column headers
-#   mass             — mass shift (Da) at conjugation site (monoisotopic where known)
-#   residue          — amino acid targeted for conjugation ("C" = Cys, "K" = Lys)
-#   conjugation_type — T3-B: one of "cysteine" | "lysine" | "site_specific"
-#                        "cysteine"     → maleimide thiol-chemistry at interchain
-#                                         disulfide Cys residues (random, DAR 0–8)
-#                        "lysine"       → NHS-ester or hydrazone at solvent-exposed Lys
-#                                         (statistical, DAR 0–8)
-#                        "site_specific"→ engineered/unnatural amino acid or
+#   name             - full descriptive name
+#   abbrev           - short abbreviation used in labels / column headers
+#   mass             - mass shift (Da) at conjugation site (monoisotopic where known)
+#   residue          - amino acid targeted for conjugation ("C" = Cys, "K" = Lys)
+#   conjugation_type - T3-B: one of "cysteine" | "lysine" | "site_specific"
+#                        "cysteine"     -> maleimide thiol-chemistry at interchain
+#                                         disulfide Cys residues (random, DAR 0-8)
+#                        "lysine"       -> NHS-ester or hydrazone at solvent-exposed Lys
+#                                         (statistical, DAR 0-8)
+#                        "site_specific"-> engineered/unnatural amino acid or
 #                                         enzymatic conjugation at a unique defined site
-#   mechanism        — pharmacological mechanism of action
-#   example_adc      — representative approved ADC using this payload
+#   mechanism        - pharmacological mechanism of action
+#   example_adc      - representative approved ADC using this payload
 
 ADCDB_PAYLOADS <- list(
 
@@ -190,12 +190,12 @@ ADCDB_PAYLOADS <- list(
 #   linker$mass + payload$mass
 #
 # Fields:
-#   name               — full descriptive name
-#   abbrev             — short abbreviation
-#   mass               — linker-only mass contribution (Da)
-#   linker_type        — "cleavable" | "non-cleavable" | "custom"
-#   cleavage_chemistry — enzyme/condition responsible for linker cleavage
-#   example_adc        — representative ADC using this linker
+#   name               - full descriptive name
+#   abbrev             - short abbreviation
+#   mass               - linker-only mass contribution (Da)
+#   linker_type        - "cleavable" | "non-cleavable" | "custom"
+#   cleavage_chemistry - enzyme/condition responsible for linker cleavage
+#   example_adc        - representative ADC using this linker
 
 ADCDB_LINKERS <- list(
 
@@ -296,10 +296,10 @@ ADCDB_LINKERS <- list(
 # Alley et al. (2008) Bioconjug. Chem. 19:759-765.
 #
 # Each entry:
-#   delta_mass  — monoisotopic mass change (Da) applied to the payload-bearing residue
-#   description — human-readable label for UI display
-#   applies_to  — character vector: residues or "any" (residue where payload sits)
-#   ref         — literature reference
+#   delta_mass  - monoisotopic mass change (Da) applied to the payload-bearing residue
+#   description - human-readable label for UI display
+#   applies_to  - character vector: residues or "any" (residue where payload sits)
+#   ref         - literature reference
 
 LINKER_BIOTRANSFORMATIONS <- list(
 
@@ -319,14 +319,14 @@ LINKER_BIOTRANSFORMATIONS <- list(
 
   thioether_sulfoxide = list(
     delta_mass  = +15.994915,
-    description = "Thioether oxidation → sulfoxide (+O)",
+    description = "Thioether oxidation -> sulfoxide (+O)",
     applies_to  = "C",
     ref         = "Lyon et al. 2015 Nat. Biotechnol."
   ),
 
   disulfide_loss = list(
     delta_mass  = -31.990415,
-    description = "Sulfone reduction / disulfide scrambling (−2S+O; approx.)",
+    description = "Sulfone reduction / disulfide scrambling (-2S+O; approx.)",
     applies_to  = "C",
     ref         = "Tumey et al. 2014 J. Med. Chem."
   ),
@@ -362,14 +362,35 @@ LINKER_BIOTRANSFORMATIONS <- list(
 #                                   at the app level).
 #
 # Args:
-#   sequence         : character(1) — single-letter amino acid sequence (peptide)
-#   conjugation_type : character(1) — "cysteine" | "lysine" | "site_specific"
-#   residue          : character(1) — target amino acid (from ADCDB_PAYLOADS$residue)
+#   sequence         : character(1) - single-letter amino acid sequence (peptide)
+#   conjugation_type : character(1) - "cysteine" | "lysine" | "site_specific"
+#   residue          : character(1) - target amino acid (from ADCDB_PAYLOADS$residue)
 #
 # Returns:
-#   integer vector — 1-based positions within the peptide where conjugation
+#   integer vector - 1-based positions within the peptide where conjugation
 #   could occur.  Returns integer(0) if no candidate sites found.
 # =============================================================================
+#' Identify conjugation-capable residues in a peptide sequence
+#'
+#' @description Returns the 1-based positions of residues that can accept an
+#'   ADC payload conjugation for the specified chemistry type. For lysine
+#'   conjugation, the N-terminal lysine (position 1) is excluded due to lower
+#'   NHS-ester reactivity.
+#'
+#' @param sequence character(1). Single-letter amino acid sequence (uppercase).
+#' @param conjugation_type character(1). One of \code{"cysteine"},
+#'   \code{"lysine"}, or \code{"site_specific"}.
+#' @param residue character(1). Single-letter amino acid code of the
+#'   conjugation residue (\code{"C"} for Cys, \code{"K"} for Lys).
+#'   Default \code{"C"}.
+#'
+#' @return integer vector of 1-based positions. Returns \code{integer(0)} if
+#'   no candidate sites are found.
+#'
+#' @export
+#' @examples
+#' detect_conjugation_sites("TCVAPTEC", conjugation_type = "cysteine", residue = "C")
+#' detect_conjugation_sites("PEPTIDEK", conjugation_type = "lysine", residue = "K")
 detect_conjugation_sites <- function(sequence, conjugation_type, residue = "C") {
   residues <- strsplit(toupper(trimws(sequence)), "", fixed = TRUE)[[1L]]
   n        <- length(residues)
@@ -380,7 +401,7 @@ detect_conjugation_sites <- function(sequence, conjugation_type, residue = "C") 
   if (length(positions) == 0L) return(integer(0L))
 
   if (conjugation_type == "lysine") {
-    # Exclude N-terminal Lys (position 1) — lower NHS-ester reactivity
+    # Exclude N-terminal Lys (position 1) - lower NHS-ester reactivity
     positions <- positions[positions > 1L]
   }
 
@@ -394,6 +415,22 @@ detect_conjugation_sites <- function(sequence, conjugation_type, residue = "C") 
 # Convenience wrapper: TRUE iff the peptide contains at least one candidate
 # conjugation site for the given payload.
 # =============================================================================
+#' Test whether a peptide contains at least one conjugation site
+#'
+#' @description Convenience wrapper around \code{\link{detect_conjugation_sites}}
+#'   that returns \code{TRUE} if at least one conjugatable residue is found.
+#'
+#' @param sequence character(1). Single-letter amino acid sequence.
+#' @param conjugation_type character(1). Conjugation chemistry type.
+#' @param residue character(1). Single-letter code of the target residue.
+#'   Default \code{"C"}.
+#'
+#' @return logical(1). \code{TRUE} if \eqn{\geq 1} conjugation site found.
+#'
+#' @export
+#' @examples
+#' has_conjugation_site("TCVAPTEC", "cysteine", "C")   # TRUE
+#' has_conjugation_site("PEPTIDE",  "cysteine", "C")   # FALSE
 has_conjugation_site <- function(sequence, conjugation_type, residue = "C") {
   length(detect_conjugation_sites(sequence, conjugation_type, residue)) > 0L
 }
@@ -404,11 +441,11 @@ has_conjugation_site <- function(sequence, conjugation_type, residue = "C") {
 # -----------------------------------------------------------------------------
 # Variable mods are user-selectable; zero or more may be active at once.
 # Each entry:
-#   residue  — single-letter AA code targeted (NA for whole-peptide mods)
-#   name     — display label
-#   mass     — monoisotopic mass shift (Da)
-#   nterm    — logical; TRUE = only apply at peptide N-terminus
-#   location — positional constraint: "any" | "nterm" | "cterm" | "<int>"
+#   residue  - single-letter AA code targeted (NA for whole-peptide mods)
+#   name     - display label
+#   mass     - monoisotopic mass shift (Da)
+#   nterm    - logical; TRUE = only apply at peptide N-terminus
+#   location - positional constraint: "any" | "nterm" | "cterm" | "<int>"
 #              (all built-in var mods default to "any" unless nterm=TRUE)
 #
 # ADCDB payload entries are generated programmatically from ADCDB_PAYLOADS
@@ -449,7 +486,7 @@ VAR_MOD_DEFS <- list(
   mmae = list(
     residue  = "C",
     name     = "MMAE conjugation (Cys)",
-    mass     = ADCDB_PAYLOADS$mmae$mass,   # 715.3 Da — references ADCDB_PAYLOADS
+    mass     = ADCDB_PAYLOADS$mmae$mass,   # 715.3 Da - references ADCDB_PAYLOADS
     nterm    = FALSE,
     location = "any"
   ),
@@ -580,11 +617,11 @@ VAR_MOD_DEFS <- list(
 # not map cleanly to a single residue.  Kept unchanged from v0.5.
 #
 # Each entry:
-#   residue  — NA (whole-peptide) or single-letter AA
-#   name     — display label
-#   mass     — monoisotopic mass shift (Da)
-#   nterm    — logical; TRUE = N-terminal modification
-#   location — positional constraint (default "any"; "nterm" for N-term mods)
+#   residue  - NA (whole-peptide) or single-letter AA
+#   name     - display label
+#   mass     - monoisotopic mass shift (Da)
+#   nterm    - logical; TRUE = N-terminal modification
+#   location - positional constraint (default "any"; "nterm" for N-term mods)
 
 SPECIAL_MOD_DEFS <- list(
 
@@ -638,7 +675,7 @@ SPECIAL_MOD_DEFS <- list(
   # targeting by checking aas against c("S","T","Y") when this mod is active.
   # Callers that need per-residue specificity should use separate entries.
   phospho_STY = list(
-    residue  = NA_character_,  # applies to S, T, or Y — see apply_modifications()
+    residue  = NA_character_,  # applies to S, T, or Y - see apply_modifications()
     name     = "Phosphorylation (Ser/Thr/Tyr)",
     mass     = 79.96633,   # HPO3
     nterm    = FALSE,
@@ -663,7 +700,7 @@ SPECIAL_MOD_DEFS <- list(
     location = "cterm"
   ),
 
-  # ── T3-C: Linker biotransformation products ──────────────────────────────
+  # -- T3-C: Linker biotransformation products ------------------------------
   # Generated from LINKER_BIOTRANSFORMATIONS; each appears in the mod UI
   # when the Biotransformation Search panel is activated.
   biotr_maleimide_hydrolysis = list(
@@ -684,7 +721,7 @@ SPECIAL_MOD_DEFS <- list(
 
   biotr_thioether_sulfoxide = list(
     residue  = "C",
-    name     = "[Biotr] Thioether → sulfoxide (+15.995 Da)",
+    name     = "[Biotr] Thioether -> sulfoxide (+15.995 Da)",
     mass     = +15.994915,
     nterm    = FALSE,
     location = "any"
@@ -692,7 +729,7 @@ SPECIAL_MOD_DEFS <- list(
 
   biotr_disulfide_loss = list(
     residue  = "C",
-    name     = "[Biotr] Disulfide loss / sulfone (−31.990 Da)",
+    name     = "[Biotr] Disulfide loss / sulfone (-31.990 Da)",
     mass     = -31.990415,
     nterm    = FALSE,
     location = "any"
@@ -720,10 +757,10 @@ SPECIAL_MOD_DEFS <- list(
 # constraint and the legacy `nterm` flag.
 #
 # Arguments:
-#   positions  — integer vector of candidate positions (1-indexed)
-#   location   — character(1): "any" | "nterm" | "cterm" | "<positive int>"
-#   nterm_flag — logical(1): legacy N-terminus flag (TRUE overrides location)
-#   n_res      — integer(1): total number of residues in the peptide
+#   positions  - integer vector of candidate positions (1-indexed)
+#   location   - character(1): "any" | "nterm" | "cterm" | "<positive int>"
+#   nterm_flag - logical(1): legacy N-terminus flag (TRUE overrides location)
+#   n_res      - integer(1): total number of residues in the peptide
 #
 # Returns:
 #   integer vector of positions that pass the filter.
@@ -758,7 +795,7 @@ SPECIAL_MOD_DEFS <- list(
     return(positions[positions == pos_int])
   }
 
-  # Unrecognised location value — warn and fall back to "any" (safe default)
+  # Unrecognised location value - warn and fall back to "any" (safe default)
   warning(sprintf(
     ".filter_positions_by_location: unrecognised location '%s'; defaulting to 'any'",
     location
@@ -774,18 +811,41 @@ SPECIAL_MOD_DEFS <- list(
 # residue masses and a list of active modifications.
 #
 # Arguments:
-#   peptide_seq   — character(1); single-letter AA sequence string
-#   active_mods   — list of mod entries (each with $residue, $mass, $nterm,
+#   peptide_seq   - character(1); single-letter AA sequence string
+#   active_mods   - list of mod entries (each with $residue, $mass, $nterm,
 #                   $location); typically the output of build_active_mods()
-#   base_mass     — numeric(1); pre-computed unmodified peptide mass (Da).
+#   base_mass     - numeric(1); pre-computed unmodified peptide mass (Da).
 #                   If NA (default), mass is computed from peptide_seq using
 #                   AA_MONO_MASS + WATER_MASS (defined in digest.R).
 #
 # Returns:
-#   numeric(1) — monoisotopic neutral mass (Da) of the modified peptide.
+#   numeric(1) - monoisotopic neutral mass (Da) of the modified peptide.
 #                Returns NA if any required mass is NA (e.g. custom_drug with
-#                no user-supplied value) — the caller should handle this case.
+#                no user-supplied value) - the caller should handle this case.
 
+#' Compute monoisotopic neutral mass of a modified peptide
+#'
+#' @description Calculates the neutral monoisotopic mass of a peptide with one
+#'   or more post-translational or chemical modifications applied. Modification
+#'   sites and mass shifts are taken from the \code{active_mods} list built by
+#'   \code{\link{build_active_mods}}.
+#'
+#' @param peptide_seq character(1). Single-letter amino acid sequence.
+#' @param active_mods named list. Active modification list from
+#'   \code{\link{build_active_mods}}.
+#' @param base_mass numeric(1) or NA. Pre-computed unmodified neutral mass.
+#'   If \code{NA} (default), computed from \code{peptide_seq} via
+#'   \code{\link{calc_peptide_mass}} logic.
+#'
+#' @return numeric(1). Monoisotopic neutral mass (Da) of the modified peptide.
+#'   Returns \code{NA} if any required modification mass is \code{NA}.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   mods <- build_active_mods(selected_var_mods = "mmae", custom_drug_mass = 715.3)
+#'   calc_modified_mass("TCVAPTEC", mods)
+#' }
 calc_modified_mass <- function(peptide_seq, active_mods, base_mass = NA_real_) {
 
   # --- Compute base (unmodified) mass if not supplied -----------------------
@@ -796,7 +856,7 @@ calc_modified_mass <- function(peptide_seq, active_mods, base_mass = NA_real_) {
       m <- AA_MONO_MASS[[aa]]
       if (is.null(m)) {
         warning(sprintf(
-          "calc_modified_mass: unknown amino acid '%s' in sequence '%s' — mass set to 0",
+          "calc_modified_mass: unknown amino acid '%s' in sequence '%s' - mass set to 0",
           aa, peptide_seq
         ))
         0
@@ -859,31 +919,64 @@ calc_modified_mass <- function(peptide_seq, active_mods, base_mass = NA_real_) {
 #                                    mass, and optionally location)
 #
 # Arguments:
-#   selected_var_mods     — character vector of VAR_MOD_DEFS keys to activate.
+#   selected_var_mods     - character vector of VAR_MOD_DEFS keys to activate.
 #                           Pass character(0) or NULL for none.
-#   selected_special_mods — character vector of SPECIAL_MOD_DEFS keys to activate.
+#   selected_special_mods - character vector of SPECIAL_MOD_DEFS keys to activate.
 #                           Pass character(0) or NULL for none.
-#   custom_mods_df        — data.frame with columns:
-#                             residue  (character) — single-letter AA code
-#                             name     (character) — display label
-#                             mass     (numeric)   — mass shift in Da
-#                             location (character, OPTIONAL) — positional
+#   custom_mods_df        - data.frame with columns:
+#                             residue  (character) - single-letter AA code
+#                             name     (character) - display label
+#                             mass     (numeric)   - mass shift in Da
+#                             location (character, OPTIONAL) - positional
 #                               constraint; defaults to "any" if column absent
 #                           Pass NULL or a zero-row data.frame for none.
-#   custom_drug_mass      — numeric(1); mass to substitute for NA entries in
+#   custom_drug_mass      - numeric(1); mass to substitute for NA entries in
 #                           VAR_MOD_DEFS (e.g. custom_drug, adcdb_custom_payload).
 #                           Ignored if NA (default).
-#   include_fixed         — logical(1); if FALSE, FIXED_MODS are excluded.
+#   include_fixed         - logical(1); if FALSE, FIXED_MODS are excluded.
 #                           Useful for computing theoretical unmodified masses.
 #
 # Returns:
 #   Named list of mod entries ready for use by calc_modified_mass() and
 #   apply_modifications().  List names are prefixed by source:
-#     "fixed_*"   — from FIXED_MODS
-#     "var_*"     — from VAR_MOD_DEFS
-#     "special_*" — from SPECIAL_MOD_DEFS
-#     "custom_*"  — from custom_mods_df (indexed by row number)
+#     "fixed_*"   - from FIXED_MODS
+#     "var_*"     - from VAR_MOD_DEFS
+#     "special_*" - from SPECIAL_MOD_DEFS
+#     "custom_*"  - from custom_mods_df (indexed by row number)
 
+#' Assemble the active modification list from UI selections
+#'
+#' @description Combines fixed modifications (always-on), user-selected
+#'   variable modifications, special modifications, and user-supplied custom
+#'   modifications into a single flat named list suitable for use with
+#'   \code{\link{calc_modified_mass}} and \code{\link{apply_modifications}}.
+#'
+#' @param selected_var_mods character vector. Keys from \code{VAR_MOD_DEFS} to
+#'   activate. Pass \code{character(0)} or \code{NULL} for none.
+#' @param selected_special_mods character vector. Keys from
+#'   \code{SPECIAL_MOD_DEFS} to activate. Default empty.
+#' @param custom_mods_df data.frame or NULL. User-supplied modifications with
+#'   columns \code{residue}, \code{name}, \code{mass}, and optionally
+#'   \code{location}. Pass \code{NULL} for none.
+#' @param custom_drug_mass numeric(1). Mass to substitute for \code{NA}
+#'   entries in VAR_MOD_DEFS (e.g. \code{"custom_drug"}). Ignored if
+#'   \code{NA} (default).
+#' @param include_fixed logical(1). If \code{FALSE}, FIXED_MODS
+#'   (carbamidomethyl Cys) are excluded. Useful for computing unmodified
+#'   theoretical masses. Default \code{TRUE}.
+#'
+#' @return Named list of modification entries. List names are prefixed by
+#'   source: \code{"fixed_*"}, \code{"var_*"}, \code{"special_*"},
+#'   \code{"custom_*"}.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   # Carbamidomethyl Cys (fixed) + MMAE payload (variable)
+#'   mods <- build_active_mods(selected_var_mods = "mmae",
+#'                             custom_drug_mass  = 715.3)
+#'   names(mods)
+#' }
 build_active_mods <- function(
     selected_var_mods     = character(0),
     selected_special_mods = character(0),
@@ -907,7 +1000,7 @@ build_active_mods <- function(
       mod <- VAR_MOD_DEFS[[key]]
       if (is.null(mod)) {
         warning(sprintf(
-          "build_active_mods: unknown variable mod key '%s' — skipped", key
+          "build_active_mods: unknown variable mod key '%s' - skipped", key
         ))
         next
       }
@@ -925,7 +1018,7 @@ build_active_mods <- function(
       mod <- SPECIAL_MOD_DEFS[[key]]
       if (is.null(mod)) {
         warning(sprintf(
-          "build_active_mods: unknown special mod key '%s' — skipped", key
+          "build_active_mods: unknown special mod key '%s' - skipped", key
         ))
         next
       }
@@ -980,20 +1073,42 @@ build_active_mods <- function(
 #   * Mods with NA mass are silently skipped (unresolved custom entries).
 #
 # Arguments:
-#   peptide_seq  — character(1); single-letter AA sequence
-#   active_mods  — named list from build_active_mods()
+#   peptide_seq  - character(1); single-letter AA sequence
+#   active_mods  - named list from build_active_mods()
 #
 # Returns:
 #   data.frame with columns:
-#     position    — integer; 1-indexed position in peptide_seq
-#     residue     — character; amino acid at that position
-#     mod_key     — character; key from active_mods list
-#     mod_name    — character; human-readable modification name
-#     mass_shift  — numeric; mass shift (Da) applied at this position
-#     location    — character; location constraint that was applied
+#     position    - integer; 1-indexed position in peptide_seq
+#     residue     - character; amino acid at that position
+#     mod_key     - character; key from active_mods list
+#     mod_name    - character; human-readable modification name
+#     mass_shift  - numeric; mass shift (Da) applied at this position
+#     location    - character; location constraint that was applied
 #
 #   Returns a zero-row data.frame (with the same columns) if no mods apply.
 
+#' Apply modifications to a peptide sequence and return an annotation table
+#'
+#' @description Evaluates each modification in \code{active_mods} against
+#'   every position in \code{peptide_seq} and returns a data.frame describing
+#'   every modification event (one row per modified site per modification).
+#'
+#' @param peptide_seq character(1). Single-letter amino acid sequence.
+#' @param active_mods named list. Active modification list from
+#'   \code{\link{build_active_mods}}.
+#'
+#' @return data.frame with columns: \code{position} (integer, 1-based),
+#'   \code{residue} (character), \code{mod_key} (character),
+#'   \code{mod_name} (character), \code{mass_shift} (numeric, Da),
+#'   \code{location} (character). Returns a zero-row data.frame (same schema)
+#'   if no modifications apply.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   mods <- build_active_mods()  # CAM on Cys only
+#'   apply_modifications("TCVAPTEC", mods)
+#' }
 apply_modifications <- function(peptide_seq, active_mods) {
 
   # Pre-split sequence once for efficiency
@@ -1012,7 +1127,7 @@ apply_modifications <- function(peptide_seq, active_mods) {
     mod_location <- if (!is.null(mod$location)) mod$location else "any"
     mod_name     <- if (!is.null(mod$name))     mod$name     else mod_key
 
-    # Skip mods with NA mass — cannot annotate without a mass value
+    # Skip mods with NA mass - cannot annotate without a mass value
     if (is.na(mod_mass_val)) next
 
     # Determine candidate positions ----------------------------------------
@@ -1022,7 +1137,7 @@ apply_modifications <- function(peptide_seq, active_mods) {
     } else {
       # Whole-peptide / terminus mod (residue = NA).
       # All positions are candidates; location filter narrows them down.
-      # Exception: phospho_STY targets S, T, Y specifically — detected by name.
+      # Exception: phospho_STY targets S, T, Y specifically - detected by name.
       if (grepl("phospho", mod_key, ignore.case = TRUE) ||
           grepl("Phosphorylation", mod_name, ignore.case = TRUE)) {
         candidate_positions <- which(aas %in% c("S", "T", "Y"))
@@ -1093,9 +1208,9 @@ apply_modifications <- function(peptide_seq, active_mods) {
 #        "Group B" = c("Label 3" = "val3"))
 #
 # Groups returned:
-#   "Standard Payloads" — legacy VAR_MOD_DEFS entries present before ADCDB
+#   "Standard Payloads" - legacy VAR_MOD_DEFS entries present before ADCDB
 #                         integration (mmae, dm1, dxd, sn38, custom_drug)
-#   "ADCDB Payloads"    — all adcdb_* entries in VAR_MOD_DEFS, with enriched
+#   "ADCDB Payloads"    - all adcdb_* entries in VAR_MOD_DEFS, with enriched
 #                         labels drawn from ADCDB_PAYLOADS metadata
 #
 # Usage in UI:
@@ -1106,6 +1221,23 @@ apply_modifications <- function(peptide_seq, active_mods) {
 #   Named list of named character vectors.
 #   Inner vector: names = display labels, values = VAR_MOD_DEFS keys.
 
+#' Get grouped payload choices for a Shiny selectInput
+#'
+#' @description Returns a named list of named character vectors for use as
+#'   the \code{choices} argument of \code{\link[shiny]{selectInput}} or
+#'   \code{\link[shiny]{selectizeInput}}. Shiny renders named lists as
+#'   \code{<optgroup>}-grouped dropdowns.
+#'
+#' @return Named list with two elements: \code{"Standard Payloads"} (legacy
+#'   VAR_MOD_DEFS entries: MMAE, DM1, DXd, SN-38, custom) and
+#'   \code{"ADCDB Payloads"} (all \code{adcdb_*} entries from VAR_MOD_DEFS,
+#'   with mechanism labels).
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   shiny::selectInput("payload", "Payload", choices = get_payload_choices())
+#' }
 get_payload_choices <- function() {
 
   # --- Helper: build a display label for a VAR_MOD_DEFS entry ---------------
