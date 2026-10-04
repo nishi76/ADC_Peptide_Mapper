@@ -1,246 +1,184 @@
 # ADC Peptide Mapper v1.0
 
-**12-tab R Shiny application** -- In-silico proteolytic digest, uniqueness checking, DAR distribution modeling, linker biotransformation variable modifications, instrument-specific transition list export, heavy labelling, MS/MS search confirmation, ADC design, antibody characterization, target biology scoring, and an AI-powered assistant for Antibody-Drug Conjugates.
+**12-tab R Shiny application for in-silico ADC peptide mapping and LC-MS/MS method development.**
+
+Covers the full workflow from FASTA upload through proteolytic digest, uniqueness checking, DAR modeling, transition list generation, MRM quality assessment, MS/MS database search, heavy labelling, and ADC design scoring -- all in one tool.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20681412.svg)](https://doi.org/10.5281/zenodo.20681412)
+
+---
 
 ## Installation
 
 ```r
 # install.packages("remotes")
-remotes::install_github("nishi76/ADC_Peptide_Mapper_v1.0")
+remotes::install_github("nishi76/ADC_Peptide_Mapper")
 ADCPeptideMapper::run_app()
 ```
 
----
-
-## What's New in v0.8
-
-| Feature | v0.7 | v0.8 |
-|---|---|---|
-| Tabs | 6 | 7 (+ AI Assistant) |
-| DAR modeling | — | DAR0–DARn distribution with per-level MRM transition lists |
-| Conjugation chemistry | — | Cysteine thiol-maleimide, lysine NHS-ester/hydrazone, site-specific classification |
-| Linker biotransformations | — | 5 variable mods: maleimide hydrolysis, succinimide ring-opening, thioether oxidation, disulfide loss, deamidation near conjugation site |
-| Isotope envelope | — | Averagine-based isotope distribution (Senko 1995) |
-| FDR estimation | — | Target-decoy FDR (Käll 2008) in MS/MS Search tab |
-| Cross-species filtering | — | Co-species uniqueness check (Human / Cyno / Rat simultaneously) |
-| cRAP contaminants | — | Common Repository of Adventitious Proteins integrated into background build |
-| Search engine support | MSFragger (commercial) | MS Amanda 3.0 (primary) + Tide/Crux 4.x (fallback) — both free |
-| Mass accuracy benchmark | — | Sub-mDa accuracy verified against IgG1 tryptic reference peptides |
-| Unit tests | — | 79 tests, 100% pass rate (`tests/test_masses.R`) |
-| AI Assistant | — | Tab 7: Anthropic Claude API chat with ADC/proteomics context |
-| Sidebar citation | — | Author, DOI, and contact always visible in sidebar |
-| Run Digest placement | Separate row below inputs | Embedded in FASTA Input card, eliminating empty space |
-| Citation DOI | Placeholder | Real Zenodo DOI: `10.5281/zenodo.20681412` |
-
----
-
-## What's New in v0.7
-
-| Feature | v0.6 | v0.7 |
-|---|---|---|
-| MS/MS Search tab | — | Tab 6: local search + PSM cross-reference |
-| Spectral input | — | mzML, mzXML, MGF |
-| Pre-computed results | — | psm.tsv, pepXML, mzIdentML upload |
-| Sequence coverage map | — | Per-chain coverage visualisation (Tab 3) |
-| Heavy Labelling | — | Tab 5: SIL-IS light/heavy pairs |
-
----
-
-## Features
-
-- **FASTA upload** — multi-chain ADC (HC + LC auto-detected); demo Trastuzumab sequence pre-loaded
-- **9-enzyme digest engine** — Trypsin, Lys-C, Lys-N, Asp-N, Glu-C (E/D), Chymotrypsin, Arg-C, CNBr, Trypsin+Lys-C
-- **Optional second enzyme** — sequential dual-enzyme digestion
-- **Missed cleavages** — 0, 1, or 2 (selectable per run)
-- **Fixed mod** — Carbamidomethylation (CAM, +57.021 Da on C)
-- **Variable mods** — Oxidation (M), Propionamide (C), NEM (C), ADCDB drug-linker payloads (MMAE, DM1, DXd, SN-38, and more)
-- **Special mods** — Deamidation (N/Q), Pyroglutamate (Q/E, N-term), Acetylation (K), Phosphorylation (S/T/Y)
-- **Linker biotransformation mods** — maleimide ring hydrolysis (+18.011 Da), succinimide ring-opening (+18.011 Da), thioether→sulfoxide (+15.995 Da), disulfide loss (−31.990 Da), conjugation-site deamidation (+0.984 Da)
-- **DAR distribution modeling** — DAR0–DARn with full MRM transition list per DAR level
-- **Custom mod builder** — any residue, any mass shift, N-term / C-term / any-position location
-- **Uniqueness check** — vs pre-built Human, Cynomolgus Monkey, and Rat backgrounds (UniProt Swiss-Prot reviewed + TrEMBL)
-- **Cross-species co-uniqueness** — filter peptides unique across all selected species simultaneously
-- **cRAP contaminant integration** — common laboratory contaminants flagged in background
-- **Sequence coverage map (Tab 3)** — greedy-lane visualisation; colour by uniqueness, missed cleavages, or length; PNG download
-- **Full b/y ion series** — b2..b(n-1) and y2..y(n-1); singly charged products
-- **Averagine isotope envelope** — monoisotopic + isotope distribution per peptide
-- **Instrument-specific export (Tab 4)** — per-platform collision energy formulas and CSV column layouts for 6 instrument families
-- **Heavy Labelling (Tab 5)** — 6 isotope label presets + custom; light/heavy peptide pairs with mass shifts
-- **MS/MS Search (Tab 6)** — MS Amanda 3.0 (primary) or Tide/Crux (fallback); target-decoy FDR estimation; dynamic score filter UI
-- **AI Assistant (Tab 7)** — Anthropic Claude API chat with ADC/proteomics system context; dynamic model selection; API key persisted to `.Renviron`
-- **Mass accuracy benchmark** — sub-mDa accuracy validated against IgG1 Fc tryptic reference peptides (GPSVFPLAPSSR, ELASGLSFPVGFK, CASIQKFGR, DTLMISR)
-- **Unit test suite** — 79 tests covering mass functions, enzyme cleavage, DAR, isotopes, and constants (`tests/test_masses.R`)
-
----
-
-## Setup
-
-### 1. Install R Packages (one-time)
-
-```r
-install.packages(c(
-  "shiny", "bs4Dash", "DT", "data.table", "openxlsx",
-  "httr2", "stringr", "dplyr", "shinycssloaders", "shinyjs", "htmltools"
-))
-```
-
-Bioconductor packages (required for mzIdentML / pepXML parsing in Tab 6):
-
-```r
-if (!requireNamespace("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
-BiocManager::install(c("Biostrings", "mzR"))
-install.packages("XML")   # for pepXML / mzIdentML parsing
-```
-
-### 2. Build Background Databases (one-time, ~10 min)
-
-```r
-setwd("path/to/ADC_Peptide_Mapper_v0.8")
-source("build_background_db.R")
-```
-
-Creates three files in `data/`:
-- `bg_human.rds` — UniProt Swiss-Prot human reviewed (~20,400 proteins)
-- `bg_monkey.rds` — Cynomolgus monkey (~1,200 proteins)
-- `bg_rat.rds` — Rat (~8,200 proteins)
-
-> **Note:** If you already have these files from v0.7, copy them into the v0.8 `data/` folder — no rebuild needed.
-
-### 3. (Optional) Set Anthropic API Key for AI Assistant
-
-To use the AI Assistant tab, you need a free or paid Anthropic API key:
-
-```r
-# In the app — paste key into the AI Assistant tab and click "Save to .Renviron"
-# The key is then loaded automatically on every future session.
-
-# Or set it manually before launching:
-Sys.setenv(ANTHROPIC_API_KEY = "sk-ant-...")
-```
-
-Get a key at: https://console.anthropic.com
-
-### 4. Launch the App
-
-```r
-shiny::runApp("app.R")
-```
-
-*Tip: In RStudio, open `app.R` and click the **Run App** button.*
+Dependencies are declared in `DESCRIPTION` and installed automatically. For MS/MS search (Tab 6) see [Search Engine Setup](#ms/ms-search-engine-setup).
 
 ---
 
 ## Tabs
 
-| Tab | Name | Purpose |
-|---|---|---|
-| 1 | **Input & Setup** | Upload ADC FASTA, name your ADC, select enzyme(s), missed cleavages, background species, run digest |
-| 2 | **Modifications** | Fixed, variable, special, linker biotransformation, and custom PTMs; ADCDB drug-linker payloads; DAR settings |
-| 3 | **Peptide Results** | Browse, filter, and export the full modified peptide table; standalone sequence coverage map; co-uniqueness check |
-| 4 | **Transition List** | Select instrument platform, DAR level, generate and download MRM/DIA transition lists |
-| 5 | **Heavy Labelling** | Generate SIL-IS light/heavy peptide pairs for quantitative LC-MS/MS |
-| 6 | **MS/MS Search** | Run MS Amanda 3.0 or Tide/Crux locally; cross-reference PSMs with theoretical peptides; FDR estimation |
-| 7 | **AI Assistant** | Claude-powered chat for ADC peptide mapping questions; uses your Anthropic API key |
+The application is split into two groups accessible from the sidebar.
+
+### Sequence Analysis
+
+| Tab | Name | What it does |
+|-----|------|-------------|
+| 1 | **Input & Setup** | Upload ADC FASTA (file or paste); name your ADC; select enzyme(s), missed cleavages, and background species; run digest |
+| 2 | **Modifications** | Fixed CAM, variable mods (oxidation, propionamide, NEM), ADCDB drug-linker payloads, linker biotransformation mods, special PTMs, custom mod builder, DAR settings |
+| 3 | **Peptide Results** | Browse and filter the full modified peptide table; sequence coverage map; co-uniqueness filter; CSV/Excel export |
+| 4 | **Transition List** | Select instrument platform and DAR level; generate and download MRM/DIA transition lists for 6 instrument families |
+| 5 | **Heavy Labelling** | Generate SIL-IS light/heavy peptide pairs; 6 isotope label presets plus custom |
+| 6 | **MS/MS Search** | Run MS Amanda 3.0 or Tide/Crux locally; upload pre-computed results (mzIdentML, pepXML, psm.tsv); cross-reference PSMs with theoretical peptides; target-decoy FDR estimation |
+| 7 | **MRM Assessment** | Score transition quality; peak simulation plots; ranked export by signal confidence |
+
+### ADC Design
+
+| Tab | Name | What it does |
+|-----|------|-------------|
+| 8 | **ADC Design** | Linker chemistry selector; payload database; deconjugation prediction with stability timeline |
+| 9 | **Target Biology** | Internalization scoring; surface accessibility assessment for 50+ known ADC targets |
+| 10 | **Antibody** | Binding affinity scoring; epitope characterization; half-life prediction; Fc engineering variants; bystander effect scoring |
+| 11 | **PK & Efficacy** | ADC PK simulation; bystander kill modeling; DAR-PK interaction curves |
+| 12 | **AI Assistant** | Anthropic Claude chat pre-loaded with ADC/proteomics context; digest context injection; model selector |
 
 ---
 
-## Tab 7 — AI Assistant
+## Features
 
-The AI Assistant tab embeds an Anthropic Claude chat interface pre-configured with ADC/proteomics context. It can help interpret results, explain mass spectrometry concepts, suggest experimental designs, and troubleshoot workflows.
+### Digest engine
+- 11 enzymes: Trypsin, Trypsin/P, Lys-C, Lys-C/P, Lys-N, Asp-N, Glu-C (E/D), Arg-C, Chymotrypsin, Papain, Elastase
+- Optional second enzyme for sequential dual-enzyme digestion
+- 0, 1, or 2 missed cleavages
+- Peptide length filter (configurable)
 
-**Setup:**
-1. Go to the **AI Assistant** tab
-2. Paste your Anthropic API key into the key field
-3. Click **Save to .Renviron** — the key persists across sessions
-4. Select a Claude model from the dropdown (populated from your account's available models)
-5. Type your question and click **Send** (or press Enter)
+### Modifications
+- **Fixed:** Carbamidomethylation (C, +57.021 Da)
+- **Variable:** Oxidation (M), Propionamide (C), NEM (C), ADCDB drug-linker payloads (MMAE, DM1, DXd, SN-38, Duocarmycin, PBD, and more)
+- **Linker biotransformations:** maleimide ring hydrolysis (+18.011 Da), succinimide ring-opening (+18.011 Da), thioether/sulfoxide oxidation (+15.995 Da), disulfide loss (-31.990 Da), conjugation-site deamidation (+0.984 Da)
+- **Special PTMs:** Deamidation (N/Q), Pyroglutamate (N-term Q/E), Acetylation (K), Phosphorylation (S/T/Y)
+- **Custom mod builder:** any residue, any mass shift, N-term / C-term / any-position
 
-**Context toggle:** enable "Include digest context" to automatically attach the current ADC name, chains detected, enzyme, and peptide count to each message.
+### Uniqueness checking
+- Pre-built background proteomes: Human, Cynomolgus Monkey, Rat (UniProt Swiss-Prot reviewed + TrEMBL)
+- Cross-species co-uniqueness: filter for peptides unique across all selected species simultaneously
+- cRAP contaminant database integrated
+
+### Transition list generation
+- Full b/y ion series (b2..b(n-1), y2..y(n-1)); singly and doubly charged products
+- Instrument-specific collision energy formulas for 6 platforms
+- DAR0-DARn level-specific transition lists
+- Averagine isotope envelope (Senko 1995) with recommended precursor isotope selection
+
+### Instrument export formats (Tab 4)
+
+| Platform | CE formula | Notes |
+|----------|-----------|-------|
+| Skyline | Generic | Direct Skyline import |
+| Thermo Xcalibur / TSQ Altis | Linear, charge-dependent | HCD/CID optimised |
+| SCIEX Analyst / QTRAP / TripleTOF | Empirical, charge-dependent | MRM and SWATH |
+| Bruker timsControl / timsTOF | TIMS-adjusted | PASEF compatible |
+| Agilent MassHunter / QQQ | Agilent empirical | MRM optimised |
+| Waters MassLynx / Xevo TQ | Waters empirical | MRM optimised |
+
+### Heavy label presets (Tab 5)
+
+| Label | Residue | Mass shift |
+|-------|---------|-----------|
+| 13C6 15N2 Lys | K | +8.014199 Da |
+| 13C6 15N4 Arg | R | +10.008269 Da |
+| D4 Lys | K | +4.025107 Da |
+| D6 Leu | L | +6.031817 Da |
+| 13C6 Leu | L | +6.020129 Da |
+| 13C9 15N1 Tyr | Y | +10.009369 Da |
+| Custom | User-defined | User-defined |
+
+### DAR modeling
+- Cysteine thiol-maleimide, lysine NHS-ester/hydrazone, and site-specific conjugation
+- Full MRM transition list per DAR level (DAR0 through DARn)
+- Linker biotransformation variable mods applied per DAR species
+
+### MRM Assessment (Tab 7)
+- Transition quality scoring
+- Peak shape simulation plots
+- Ranked export by signal confidence
+- DAR-level summary view
+
+### ADC Design tabs (8-11)
+- Linker and payload database with approved ADC reference data
+- Deconjugation prediction with plasma stability timeline
+- Internalization and surface accessibility scoring for 50+ targets
+- Antibody half-life prediction across Fc engineering variants (LS, GASDALIE, YTE, etc.)
+- Bystander effect scoring
+- ADC PK simulation with DAR-dependent clearance modeling
+
+### AI Assistant (Tab 12)
+- Anthropic Claude API with ADC/proteomics system context
+- Digest context injection (ADC name, chains, enzyme, peptide count)
+- Dynamic model selector
+- API key saved to `.Renviron` for persistence
 
 ---
 
-## Tab 3 — Sequence Coverage Map
+## Setup
 
-After running the digest, a **Sequence Coverage Map** card appears below the peptide results table. It shows all theoretical peptides mapped onto each chain using a greedy lane-assignment algorithm (no overlapping bars).
+### 1. Install from GitHub
 
-**Controls:**
-- **Show chain** — display all chains or one at a time
-- **Colour by** — Uniqueness (navy = unique, grey = non-unique), Missed cleavages (dark → light blue), or Peptide length (viridis scale)
-- **Show peptide labels** — overlay sequence text on peptides ≥ 8 AA
-- **Download PNG** — 300 dpi export
+```r
+install.packages("remotes")
+remotes::install_github("nishi76/ADC_Peptide_Mapper")
+ADCPeptideMapper::run_app()
+```
 
-Coverage percentage is annotated per chain (e.g. "HC: 74.0% covered (333 / 450 AA)").
+Background databases (Human, Cyno, Rat) are bundled in the package -- no manual build step needed.
 
----
+### 2. (Optional) MS/MS Search Engine
 
-## Tab 6 — MS/MS Search Engine Setup
+Tab 6 requires MS Amanda 3.0 or Tide/Crux installed on your machine. See [Search Engine Setup](#ms/ms-search-engine-setup) below.
 
-Tab 6 runs MS Amanda 3.0 (primary) or Tide/Crux (fallback) on your local machine and cross-references PSM results against the theoretical peptide list from Tab 3.
+### 3. (Optional) Anthropic API Key for AI Assistant
 
-### Engine detection order
+```r
+Sys.setenv(ANTHROPIC_API_KEY = "sk-ant-...")
+# Or paste it directly into Tab 12 and click "Save to .Renviron"
+```
 
-1. **MS Amanda 3.0** — checked first
-   - Explicit path in the "Engine executable path" field
-   - `MSAMANDA_EXE` environment variable
-   - Auto-scan: `MSAmanda` / `MSAmanda.exe` in `getwd()`, `~/tools/`, `~/bin/`, `~/MSAmanda/`
-   - System PATH
-
-2. **Tide/Crux 4.x** — checked only if MS Amanda not found
-   - `CRUX_EXE` environment variable
-   - Auto-scan: `crux` / `crux.exe` in `getwd()`, `~/tools/`, `~/bin/`, `~/crux/bin/`
-   - System PATH
-
-The status badge in Tab 6 shows which engine is active and links to download pages if neither is found.
-
-### Score filter UI
-
-The score slider label and range change automatically based on the detected engine:
-- **MS Amanda:** "Minimum Amanda Score" (0–2000, default 100)
-- **Tide/Crux:** "Minimum XCorr" (0–10, default 1.5)
-
-### Path A — upload pre-computed results
-
-Upload any of the following directly (skips the search step):
-- `.mzid` / `.mzidentml` — MS Amanda output
-- `.pepxml` / `.pep.xml` — Tide/Crux output
-- `psm.tsv` — FragPipe / MSFragger legacy
-- Amanda summary `.csv`
-
-Format is auto-detected from file extension and content.
+Get a key at: https://console.anthropic.com
 
 ---
 
-## MS/MS Search Engine Installation
+## MS/MS Search Engine Setup
 
-### MS Amanda 3.0 (Primary — recommended)
+### MS Amanda 3.0 (recommended)
 
-MS Amanda is a free, standalone peptide identification engine developed at the Institute of Molecular Pathology (IMP), Vienna. Designed for high-resolution Orbitrap data. No Java, no licence fee.
+Free, standalone, no Java required. Developed at the Institute of Molecular Pathology (IMP), Vienna.
 
 **Download:** https://github.com/hgb-bin-proteomics/MSAmanda/releases
 
-| Platform | Binary name | Notes |
-|---|---|---|
-| Windows 10/11 (x64) | `MSAmanda.exe` | Standalone `.exe`; no installer needed |
-| Linux (x86_64) | `MSAmanda` | Requires .NET 6 runtime |
-| macOS (Intel / Apple Silicon) | `MSAmanda` | Requires .NET 6 runtime |
+| Platform | Binary | Notes |
+|----------|--------|-------|
+| Windows 10/11 | `MSAmanda.exe` | No installer needed |
+| Linux | `MSAmanda` | Requires .NET 6 runtime |
+| macOS | `MSAmanda` | Requires .NET 6 runtime |
 
 **.NET 6 runtime (Linux/macOS):**
 ```bash
 # Ubuntu/Debian
 sudo apt-get install -y dotnet-runtime-6.0
-# macOS (Homebrew)
+# macOS
 brew install --cask dotnet-runtime
 ```
 
-### Tide / Crux 4.x (Fallback)
+### Tide / Crux 4.x (fallback)
 
-**Download:** https://crux.ms/download.html — statically linked, no dependencies.
+**Download:** https://crux.ms/download.html
 
-### Converting Raw Files (ProteoWizard MSConvert)
+### Converting raw files (ProteoWizard MSConvert)
 
 ```bash
 msconvert input.raw --mzML --filter "peakPicking true 1-"
@@ -248,135 +186,45 @@ msconvert input.raw --mzML --filter "peakPicking true 1-"
 
 **Download:** https://proteowizard.sourceforge.io
 
-### Requirements Summary
-
-| Component | Required for | Source | Free? |
-|---|---|---|---|
-| R ≥ 4.2 | App runtime | https://cran.r-project.org | Yes |
-| R packages (see §1) | App runtime | CRAN / Bioconductor | Yes |
-| MS Amanda 3.0 | Tab 6 (primary) | https://github.com/hgb-bin-proteomics/MSAmanda/releases | Yes |
-| .NET 6 runtime | MS Amanda on Linux/Mac | https://dotnet.microsoft.com/download/dotnet/6.0 | Yes |
-| Crux 4.x (Tide) | Tab 6 (fallback) | https://crux.ms/download.html | Yes |
-| ProteoWizard MSConvert | Raw file conversion | https://proteowizard.sourceforge.io | Yes |
-| Anthropic API key | Tab 7 AI Assistant | https://console.anthropic.com | Free tier available |
-| Internet access | `build_background_db.R` only | — | — |
+Detection order: explicit path in UI > `MSAMANDA_EXE` / `CRUX_EXE` environment variable > auto-scan of common directories > system PATH. MS Amanda is always preferred over Tide.
 
 ---
 
-## Supported Instruments (Tab 4)
-
-| Platform | CE Formula | Notes |
-|---|---|---|
-| Thermo (Orbitrap/TSQ) | Linear, charge-dependent | HCD/CID optimised |
-| SCIEX (QTRAP/TripleTOF) | Empirical, charge-dependent | MRM & SWATH |
-| Bruker (timsTOF) | TIMS-adjusted | PASEF compatible |
-| Agilent (QQQ/QTOF) | Agilent empirical | MRM optimised |
-| Waters (Xevo/Synapt) | Waters empirical | MRM optimised |
-| Skyline (generic) | Sciex-style default | Direct Skyline import |
-
----
-
-## Heavy Label Presets (Tab 5)
-
-| Label | Residue | Mass Shift (Da) |
-|---|---|---|
-| 13C6 15N2 Lys | K | +8.014199 |
-| 13C6 15N4 Arg | R | +10.008269 |
-| D4 Lys | K | +4.025107 |
-| D6 Leu | L | +6.031817 |
-| 13C6 Leu | L | +6.020129 |
-| 13C9 15N1 Tyr | Y | +10.009369 |
-| Custom | User-defined | User-defined |
-
----
-
-## DAR Modeling (Tab 2 / Tab 4)
-
-Drug-to-Antibody Ratio (DAR) distribution modeling generates a complete MRM transition list for each DAR species (DAR0 through DARn). Each DAR level adds the appropriate number of drug-linker payload mass units to the conjugated peptide(s), reflecting the statistical distribution of conjugation sites in the ADC drug product.
-
-**Conjugation chemistry supported:**
-- Cysteine thiol-maleimide (interchain disulfide reduction)
-- Lysine NHS-ester / hydrazone
-- Site-specific (engineered cysteines, unnatural amino acids)
-
-**Linker biotransformations modeled as variable modifications:**
-
-| Biotransformation | Mass shift | Residue |
-|---|---|---|
-| Maleimide ring hydrolysis | +18.011 Da | C |
-| Succinimide ring-opening | +18.011 Da | C |
-| Thioether → sulfoxide oxidation | +15.995 Da | C |
-| Disulfide loss | −31.990 Da | C |
-| Deamidation at conjugation site | +0.984 Da | N |
-
----
-
-## File Structure
+## Package structure
 
 ```
-ADC_Peptide_Mapper_v0.8/
-├── app.R                    ← Main Shiny application (7 tabs)
-├── build_background_db.R    ← One-time database builder (UniProt + cRAP)
-├── deploy.R                 ← shinyapps.io deployment script
-├── DESCRIPTION              ← Package metadata (for rsconnect)
-├── CITATION.cff             ← Citation metadata (CFF v1.2.0)
-├── README.md                ← This file
-├── R/
-│   ├── digest.R             ← 9-enzyme digest engine
-│   ├── modifications.R      ← PTM definitions, ADCDB payloads, linker biotransformations
-│   ├── transitions.R        ← b/y ion series + CE calculation + DAR transitions
-│   ├── isotopes.R           ← Averagine isotope envelope (Senko 1995)
-│   ├── export.R             ← 6-platform instrument formatters
-│   ├── uniqueness.R         ← Background proteome loading & uniqueness checking
-│   ├── dar.R                ← DAR distribution modeling
-│   └── msearch.R            ← MS Amanda + Tide engine detection, search, FDR, result parsing
-├── tests/
-│   ├── test_masses.R        ← 79 unit tests (100% pass rate)
-│   └── benchmark_mass_accuracy.R  ← Sub-mDa accuracy benchmark (10/10 pass)
-├── data/
-│   ├── bg_human.rds         ← (generated by build_background_db.R)
-│   ├── bg_monkey.rds        ← (generated by build_background_db.R)
-│   ├── bg_rat.rds           ← (generated by build_background_db.R)
-│   └── README.txt
-└── www/
-    └── custom.css           ← App styling + AI chat UI + sidebar citation styles
+ADCPeptideMapper/
++-- R/
+|   +-- digest.R                <- 11-enzyme digest engine
+|   +-- modifications.R         <- PTM definitions, ADCDB payloads, linker biotransformations
+|   +-- transitions.R           <- b/y ion series, CE calculation, DAR transitions
+|   +-- isotopes.R              <- Averagine isotope envelope (Senko 1995)
+|   +-- export.R                <- 6-platform instrument formatters
+|   +-- uniqueness.R            <- Background proteome loading and uniqueness checking
+|   +-- dar.R                   <- DAR distribution modeling
+|   +-- msearch.R               <- MS Amanda + Tide engine detection, search, FDR, parsing
+|   +-- adc_design.R            <- Linker/payload database, deconjugation prediction
+|   +-- antibody_characterization.R  <- Binding affinity, epitope, half-life, bystander
+|   +-- target_biology.R        <- Internalization scoring, surface accessibility
+|   +-- run_app.R               <- run_app() entry point
+|   +-- zzz.R                   <- Package-level imports and globalVariables
++-- inst/
+|   +-- shiny/                  <- Bundled Shiny app (12 tabs)
+|   +-- extdata/                <- Background databases (human, monkey, rat, cRAP)
++-- man/                        <- Auto-generated help pages (58 topics)
++-- DESCRIPTION
++-- NAMESPACE
 ```
 
 ---
 
-## Deployment (shinyapps.io)
+## Running tests
 
 ```r
-# One-time account setup
-install.packages("rsconnect")
-rsconnect::setAccountInfo(
-  name   = "your-account-name",   # from shinyapps.io → Account → Profile
-  token  = "YOUR_TOKEN",          # from shinyapps.io → Account → Tokens
-  secret = "YOUR_SECRET"
-)
-
-# Deploy
-source("deploy.R")
+setwd("path/to/ADC_Peptide_Mapper_v1.0")
+source("tests/test_masses.R")            # 79 unit tests
+source("tests/benchmark_mass_accuracy.R") # 10 reference peptides, <= 0.05 mDa
 ```
-
-After deploying, set your Anthropic API key as a **shinyapps.io environment variable** (app Settings → Environment Variables → `ANTHROPIC_API_KEY`) — never hard-code it or commit it to git.
-
----
-
-## Running Unit Tests
-
-```r
-setwd("path/to/ADC_Peptide_Mapper_v0.8")
-source("R/digest.R")
-source("R/modifications.R")
-source("R/transitions.R")
-source("R/isotopes.R")
-source("R/dar.R")
-source("tests/test_masses.R")         # 79 tests
-source("tests/benchmark_mass_accuracy.R")  # 10 reference peptides
-```
-
-All 79 tests and all 10 mass accuracy benchmarks (≤ 0.05 mDa) should pass before deploying.
 
 ---
 
@@ -385,11 +233,11 @@ All 79 tests and all 10 mass accuracy benchmarks (≤ 0.05 mDa) should pass befo
 If you use ADC Peptide Mapper in your research, please cite:
 
 ```
-Wase, N. (2026). ADC Peptide Mapper (Version 0.8) [Software].
+Wase, N. (2026). ADC Peptide Mapper (Version 1.0) [Software].
 https://doi.org/10.5281/zenodo.20681412
 ```
 
-If you use the MS/MS Search tab (Tab 6) with MS Amanda, also cite:
+If using the MS/MS Search tab with MS Amanda, also cite:
 
 ```
 Dorfer V, et al. MS Amanda, a Universal Identification Algorithm Optimized
@@ -397,27 +245,31 @@ for High Accuracy Tandem Mass Spectra. J Proteome Res. 2014;13(8):3679-3684.
 doi:10.1021/pr500202e
 ```
 
-If using Tide/Crux, also cite:
+If using Tide/Crux:
 
 ```
 McIlwain S, et al. Crux: Rapid Open Source Protein Tandem Mass Spectrometry
 Analysis. J Proteome Res. 2014;13(10):4488-4491. doi:10.1021/pr500741y
 ```
 
-See `CITATION.cff` for full metadata including all 16 scientific references.
+Isotope envelope: Senko MW, et al. Determination of monoisotopic masses and ion
+populations for large biomolecules from resolved isotopic distributions.
+J Am Soc Mass Spectrom. 1995;6(4):229-233.
+
+See `CITATION.cff` for full metadata.
 
 ---
 
 ## License
 
-MIT License — see `LICENSE` for details.
+MIT -- see `LICENSE` for details.
 
 ---
 
 ## Author
 
-**Nishikant Wase, PhD** — [nishikant.wase@gmail.com](mailto:nishikant.wase@gmail.com)  
+**Nishikant Wase, PhD** -- [nishikant.wase@gmail.com](mailto:nishikant.wase@gmail.com)  
 Portfolio: [nishi76.github.io](https://nishi76.github.io)  
 DOI: [10.5281/zenodo.20681412](https://doi.org/10.5281/zenodo.20681412)
 
-*For research use only. Monoisotopic masses throughout. Background databases sourced from UniProt Swiss-Prot reviewed proteomes (Human, Cynomolgus Monkey, Rat).*
+*For research use only. Monoisotopic masses throughout. Background databases sourced from UniProt Swiss-Prot reviewed proteomes.*

@@ -11,6 +11,7 @@
 ^\.github$
 ^CITATION\.cff$
 ^LICENSE\.md$
+^QUICKSTART\.md$
 ^app\.R$
 ^www$
 ^data$
