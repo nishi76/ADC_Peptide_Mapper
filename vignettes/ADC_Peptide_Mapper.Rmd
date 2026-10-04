@@ -1,28 +1,18 @@
 ---
-title: "ADC Peptide Mapper: A Workflow Guide"
-author:
-  - name: Nishikant Wase
-    email: nishikant.wase@gmail.com
-package: ADCPeptideMapper
+title: "ADC Peptide Mapper: Full Workflow Guide"
+author: "Nishikant Wase"
 output:
-  BiocStyle::html_document:
+  rmarkdown::html_vignette:
     toc: true
     toc_depth: 3
     number_sections: true
-abstract: |
-  ADC Peptide Mapper v1.0 is an R Shiny application for in-silico design and
-  peptide-mapping analysis of Antibody-Drug Conjugates. Starting from FASTA sequences,
-  it performs proteolytic digest, uniqueness checking against background proteomes,
-  MRM transition generation, heavy-isotope labelling, and MS/MS search integration.
-  Version 1.0 adds four computational design modules: ADC Design (linker chemistry,
-  payload selection, deconjugation kinetics), Target Biology (internalization scoring,
-  surface accessibility), Antibody Characterization (binding affinity, epitope classification,
-  FcRn half-life prediction), and PK & Efficacy (bystander effect scoring, PK simulation).
-  All prediction engines are rule-based and curated; no external API calls or machine
-  learning models are required. This vignette demonstrates the full v1.0 workflow
-  using a Trastuzumab-DXd analogue example.
+description: >
+  Full v1.0 workflow using a Trastuzumab-DXd analogue example. Covers FASTA
+  ingestion, proteolytic digest, uniqueness checking, MRM transition generation,
+  heavy-isotope labelling, MS/MS search, ADC design, target biology, antibody
+  characterization, and PK simulation.
 vignette: >
-  %\VignetteIndexEntry{ADC Peptide Mapper: A Workflow Guide}
+  %\VignetteIndexEntry{ADC Peptide Mapper: Full Workflow Guide}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -30,11 +20,13 @@ vignette: >
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo    = TRUE,
-  eval    = FALSE,
+  eval    = FALSE,   # all chunks show code but do not run during build
   message = FALSE,
   warning = FALSE,
   comment = "#>"
 )
+library(ADCPeptideMapper)
+library(data.table)
 ```
 
 # Introduction
@@ -43,17 +35,17 @@ Antibody-Drug Conjugates (ADCs) are a rapidly expanding class of targeted therap
 that combine the specificity of monoclonal antibodies with the potency of small-molecule
 cytotoxins. Designing and analytically characterising ADCs requires integration of
 molecular biology, protein biochemistry, analytical chemistry, and pharmacokinetic
-modelling — disciplines that have historically relied on separate, siloed tools.
+modelling -- disciplines that have historically relied on separate, siloed tools.
 
 ADC Peptide Mapper v1.0 integrates this workflow into a single, browser-based R Shiny
 application that runs locally or on a hosted server without modification. The application
 covers two broad phases:
 
-**Phase 1 — Peptide mapping (Tabs 1–6):** FASTA ingestion, proteolytic digest,
+**Phase 1 - Peptide mapping (Tabs 1-7):** FASTA ingestion, proteolytic digest,
 cross-species uniqueness checking, MRM/DIA transition generation, SIL-IS labelling,
-and MS Amanda / Tide-Crux MS/MS search.
+MS Amanda / Tide-Crux MS/MS search, and MRM quality assessment.
 
-**Phase 2 — ADC design (Tabs 8–11):** Curated linker and payload databases, first-order
+**Phase 2 - ADC design (Tabs 8-11):** Curated linker and payload databases, first-order
 deconjugation kinetics, internalization and surface accessibility scoring, binding affinity
 classification, epitope characterization, FcRn / half-life prediction, bystander effect
 scoring, and one-compartment PK simulation.
@@ -75,46 +67,43 @@ https://doi.org/10.5281/zenodo.20681412
 
 # Installation
 
-## R packages
+## Install from GitHub
 
 ```{r install-packages}
-install.packages(c(
-  "shiny", "bs4Dash", "DT", "data.table", "openxlsx",
-  "httr2", "stringr", "dplyr", "shinycssloaders",
-  "shinyjs", "htmltools"
-))
-install.packages("XML")  # for mzIdentML/pepXML parsing in Tab 6
+install.packages("remotes")
+remotes::install_github("nishi76/ADC_Peptide_Mapper")
 ```
 
-No Bioconductor packages are required to run the application. The vignette imports
-`Biostrings` in one illustrative code block only; it is not a runtime dependency.
+All R package dependencies (shiny, bs4Dash, DT, data.table, openxlsx, ggplot2,
+and more) are declared in `DESCRIPTION` and installed automatically. Background
+proteome databases (Human, Cynomolgus Monkey, Rat) are bundled in the package --
+no manual build step is required.
 
-## Build background proteome databases (one-time)
+For MS/MS search engine support (Tab 6) install MS Amanda 3.0:
 
-```{r build-db}
-setwd("path/to/ADC_Peptide_Mapper_v1.0")
-source("build_background_db.R")
+```{r msamanda, eval=FALSE}
+# Set path to binary after downloading from:
+# https://github.com/hgb-bin-proteomics/MSAmanda/releases
+Sys.setenv(MSAMANDA_EXE = "/path/to/MSAmanda")
 ```
-
-This downloads Human, Cynomolgus Monkey, and Rat Swiss-Prot proteomes from UniProt
-and stores them as indexed `.rds` files in `data/`. Internet access is required once.
-Background databases built for v0.8 are directly compatible with v1.0.
 
 ## Launch the application
 
 ```{r launch}
-shiny::runApp("app.R")
+library(ADCPeptideMapper)
+run_app()
 ```
 
 The application opens on Tab 1 (Input and Setup) with the Trastuzumab HC/LC demo
-sequence pre-loaded.
+sequence pre-loaded. Alternatively, access every function directly from the R
+console as shown in the rest of this vignette.
 
 ---
 
 # Example dataset: Trastuzumab-DXd analogue
 
-This vignette uses a fictional Trastuzumab-DXd analogue — trastuzumab conjugated via
-a cleavable MC-VC-PABC linker to DXd (deruxtecan payload) — as the running example.
+This vignette uses a fictional Trastuzumab-DXd analogue -- trastuzumab conjugated via
+a cleavable MC-VC-PABC linker to DXd (deruxtecan payload) -- as the running example.
 The antibody targets HER2 (ERBB2; UniProt P04626). Key design parameters:
 
 | Parameter | Value |
@@ -129,12 +118,12 @@ The antibody targets HER2 (ERBB2; UniProt P04626). Key design parameters:
 
 ---
 
-# Step 1 — Input and Setup (Tab 1)
+# Step 1 -- Input and Setup (Tab 1)
 
 Navigate to Tab 1. The demo Trastuzumab HC and LC sequences are pre-loaded.
 
 ```{r step1-fasta}
-# Example FASTA — Trastuzumab heavy chain (N-terminal fragment shown)
+# Example FASTA -- Trastuzumab heavy chain (N-terminal fragment shown)
 trastuzumab_hc <- paste0(
   ">Trastuzumab_HC\n",
   "EVQLVESGGGLVQPGGSLRLSCAASGFNIKDTYIHWVRQAPGKGLEWVARIYPTNGYTRYADSVKGRFTIS\n",
@@ -155,12 +144,12 @@ trastuzumab_hc <- paste0(
 - Background proteome: `Human`
 - Chains: HC (heavy chain) + LC (light chain)
 
-Click **Run Digest & Uniqueness Check**. The pipeline runs in 5–10 seconds for a typical
+Click **Run Digest & Uniqueness Check**. The pipeline runs in 5-10 seconds for a typical
 IgG sequence pair.
 
 ---
 
-# Step 2 — Modifications (Tab 2)
+# Step 2 -- Modifications (Tab 2)
 
 ## Fixed modifications
 
@@ -187,10 +176,10 @@ expand the search space for the MS/MS search in Tab 6.
 
 ---
 
-# Step 3 — Peptide Results (Tab 3)
+# Step 3 -- Peptide Results (Tab 3)
 
 After digest completes, Tab 3 shows the full peptide table. For Trastuzumab trypsin
-digest with 1 missed cleavage, expect approximately 80–120 unique peptides.
+digest with 1 missed cleavage, expect approximately 80-120 unique peptides.
 
 ```{r step3-filter}
 library(data.table)
@@ -210,14 +199,14 @@ cat("Drug-modified peptides:", nrow(hinge_peptides), "\n")
 **Coverage map:** the sequence coverage panel displays all detected peptides as horizontal
 bars on the HC and LC primary sequences, colour-coded by uniqueness or modification status.
 For Trastuzumab-DXd, look for peptide bands covering the Fc hinge region (HC residues
-~220–240) where inter-chain disulfide cysteines are the primary conjugation sites.
+~220-240) where inter-chain disulfide cysteines are the primary conjugation sites.
 
 **Download:** click **Download Excel** to save the full peptide table with uniqueness
 annotations, mass accuracy, and coverage statistics.
 
 ---
 
-# Step 4 — Transition List (Tab 4)
+# Step 4 -- Transition List (Tab 4)
 
 ## Platform selection
 
@@ -231,7 +220,7 @@ Select your mass spectrometry platform:
 | Bruker timsTOF | Bruker CSV | PASEF-MRM compatible |
 | Agilent | Agilent CSV | 6495 QQQ method format |
 
-For DAR-level quantification, select **All DAR levels (DAR0–DAR8)** to generate
+For DAR-level quantification, select **All DAR levels (DAR0-DAR8)** to generate
 transitions for each drug loading species. The app creates separate transition lists
 per DAR level with peptide modifications adjusted for drug count.
 
@@ -253,7 +242,7 @@ Product ions: y-series from y2 to y21
 
 ---
 
-# Step 5 — Heavy Labelling (Tab 5)
+# Step 5 -- Heavy Labelling (Tab 5)
 
 Select a stable isotope labelling preset to generate SIL-IS (stable isotope-labelled
 internal standard) transition pairs for absolute quantification:
@@ -274,7 +263,7 @@ light/heavy pairs for each DAR level (DAR0 through DAR8).
 
 ---
 
-# Step 6 — MS/MS Search (Tab 6)
+# Step 6 -- MS/MS Search (Tab 6)
 
 ## Running MS Amanda
 
@@ -294,9 +283,9 @@ with the Tab 3 peptide table.
 
 If you have already run the search externally, upload:
 
-- mzIdentML (`.mzid`) — from MS Amanda, Mascot, or MSFragger
-- pepXML (`.pep.xml`) — from Tide/Crux or Comet
-- PSM TSV (`.tsv`) — tab-separated PSM table with standard column headers
+- mzIdentML (`.mzid`) -- from MS Amanda, Mascot, or MSFragger
+- pepXML (`.pep.xml`) -- from Tide/Crux or Comet
+- PSM TSV (`.tsv`) -- tab-separated PSM table with standard column headers
 
 ## Score filtering and coverage
 
@@ -307,7 +296,7 @@ unmodified cysteines per DAR level, supporting DAR distribution measurement.
 
 ---
 
-# Step 7 (v1.0) — MRM Assessment (Tab 7)
+# Step 7 (v1.0) -- MRM Assessment (Tab 7)
 
 After acquiring MRM data using the transition list from Tab 4, upload the Skyline
 peak-area export to Tab 7 for automated quality assessment.
@@ -353,7 +342,7 @@ or your instrument acquisition software.
 
 ---
 
-# Step 8 (v1.0) — ADC Design (Tab 8)
+# Step 8 (v1.0) -- ADC Design (Tab 8)
 
 
 ## Linker chemistry reference
@@ -361,7 +350,7 @@ or your instrument acquisition software.
 The linker table covers 14 ADC linkers. To access the underlying data programmatically:
 
 ```{r step7-linker}
-source("R/adc_design.R")
+
 linkers <- get_linker_table()
 print(linkers[, .(Name, Type, Stability_rank, t_half_plasma_days)])
 ```
@@ -383,7 +372,7 @@ The `predict_deconjugation()` function applies first-order kinetics to model DAR
 in plasma. For trastuzumab-DXd (maleimide-thiol, Cys-engineered, DAR8):
 
 ```{r step7-deconj}
-source("R/adc_design.R")
+
 
 result <- predict_deconjugation(
   chemistry   = "Maleimide-thiol (MC-VC-PABC / SMCC)",
@@ -414,12 +403,12 @@ print(p)
 
 ---
 
-# Step 9 (v1.0) — Target Biology (Tab 9)
+# Step 9 (v1.0) -- Target Biology (Tab 9)
 
 ## Internalization scoring
 
 ```{r step8-intern}
-source("R/target_biology.R")
+
 
 her2 <- score_internalization("HER2")
 cat("Target:", her2$target, "\n")
@@ -460,20 +449,20 @@ Notes: Large 4-domain ECD; highly accessible at tumor surface; HER2+ amplified c
        show very high density
 ```
 
-HER2 scores highly for surface accessibility — its four extracellular domains project
+HER2 scores highly for surface accessibility -- its four extracellular domains project
 well away from the membrane, and there is no known shed soluble form that could act
 as an antibody decoy.
 
 ---
 
-# Step 10 (v1.0) — Antibody Characterization (Tab 10)
+# Step 10 (v1.0) -- Antibody Characterization (Tab 10)
 
 ## Binding affinity scoring
 
 Trastuzumab has a measured KD of approximately 0.1 nM for HER2 domain IV.
 
 ```{r step9-affinity}
-source("R/antibody_characterization.R")
+
 
 ba <- score_binding_affinity(kd_nm = 0.1, kon = 1.2e6, koff = 1.2e-4)
 cat("Tier:", ba$tier, "\n")
@@ -538,7 +527,7 @@ cat("YTE Fc predicted t1/2:", hl_yte$predicted_halflife, "days\n")
 
 ---
 
-# Step 11 (v1.0) — PK & Efficacy (Tab 11)
+# Step 11 (v1.0) -- PK & Efficacy (Tab 11)
 
 ## Bystander effect scoring
 
@@ -546,8 +535,8 @@ DXd is a topoisomerase I inhibitor with confirmed cell permeability and an IC50 
 approximately 0.31 nM as free payload. The bystander scorer:
 
 ```{r step10-bystander}
-source("R/adc_design.R")
-source("R/antibody_characterization.R")
+
+
 
 payload_tbl <- get_payload_table()
 bystander   <- score_bystander_effect("DXd", payload_table = payload_tbl)
@@ -606,7 +595,7 @@ intact ADC relative to the naked antibody component.
 
 ---
 
-# Step 12 — AI Assistant (last tab)
+# Step 12 -- AI Assistant (last tab)
 
 The AI Assistant tab provides multi-provider LLM access pre-configured with ADC context.
 
@@ -656,7 +645,7 @@ Example queries relevant to the trastuzumab-DXd example:
 ## ADC Design (`R/adc_design.R`)
 
 ```{r api-adc-design}
-source("R/adc_design.R")
+
 
 # Linker database
 linkers <- get_linker_table()
@@ -682,7 +671,7 @@ p <- plot_deconjugation(result)
 ## Target Biology (`R/target_biology.R`)
 
 ```{r api-target-biology}
-source("R/target_biology.R")
+
 
 # Internalization scoring
 intern <- score_internalization("HER2")
@@ -698,7 +687,7 @@ surf <- assess_surface_accessibility("HER2")
 ## Antibody Characterization (`R/antibody_characterization.R`)
 
 ```{r api-ab-char}
-source("R/antibody_characterization.R")
+
 
 # Binding affinity scoring
 ba <- score_binding_affinity(kd_nm = 1.0, kon = 1e6, koff = 1e-3)

@@ -1,0 +1,342 @@
+---
+title: "Getting Started with ADCPeptideMapper"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with ADCPeptideMapper}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  eval    = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  comment = "#>"
+)
+```
+
+## Overview
+
+ADC Peptide Mapper provides a set of R functions for in-silico analysis of
+Antibody-Drug Conjugates (ADCs). This vignette shows the core programmatic
+API -- everything runs directly in the R console without launching the Shiny
+interface.
+
+```{r load}
+library(ADCPeptideMapper)
+library(data.table)
+```
+
+---
+
+## 1. Parse a FASTA sequence
+
+The package works with standard FASTA text. Use `parse_fasta()` to convert it
+into a named character vector of sequences.
+
+```{r fasta}
+fasta_text <- paste0(
+  ">Trastuzumab_HC\n",
+  "EVQLVESGGGLVQPGGSLRLSCAASGFNIKDTYIHWVRQAPGKGLEWVARIYPTNGYTRYADSVKG",
+  "RFTISADTSKNTAYLQMNSLRAEDTAVYYCSRWGGDGFYAMDYWGQGTLVTVSS\n",
+  ">Trastuzumab_LC\n",
+  "DIQMTQSPSSLSASVGDRVTITCRASQDVNTAVAWYQQKPGKAPKLLIYSASFLYSGVPSRFSGS",
+  "GSGTDFTLTISSLQPEDFATYYCQQHYTTPPTFGQGTKVEIK"
+)
+
+seqs <- parse_fasta(fasta_text)
+cat("Chains parsed:", length(seqs), "\n")
+cat("HC length:", nchar(seqs[1]), "AA\n")
+cat("LC length:", nchar(seqs[2]), "AA\n")
+```
+
+---
+
+## 2. Digest a sequence
+
+`digest_fasta()` performs in-silico proteolytic digestion and returns a
+`data.table` with one row per peptide.
+
+```{r digest}
+peptides <- digest_fasta_enzyme(
+  fasta_text       = fasta_text,
+  enzyme_id        = "trypsin",
+  missed_cleavages = 1L,
+  min_len          = 6L,
+  max_len          = 40L
+)
+
+cat("Total peptides (MC <= 1):", nrow(peptides), "\n")
+head(peptides[, .(Chain, Sequence, Start, End, Length, Mass)], 8)
+```
+
+---
+
+## 3. Calculate peptide masses
+
+`calc_peptide_mass()` returns the monoisotopic neutral mass of a peptide
+sequence (no modifications, no charges).
+
+```{r masses}
+test_peptides <- c("STSGGTAALGCLVK", "GPSVFPLAPSSR", "ELASGLSFPVGFK")
+
+masses <- sapply(test_peptides, calc_peptide_mass)
+results <- data.frame(
+  Peptide = test_peptides,
+  MonoMass = round(masses, 4)
+)
+print(results)
+```
+
+Reference values from IgG1 Fc tryptic standards (Damen 2009):
+
+| Peptide | Published mass (Da) |
+|---------|-------------------|
+| GPSVFPLAPSSR | 1233.6610 |
+| ELASGLSFPVGFK | 1315.7240 |
+| STSGGTAALGCLVK | 1334.6930 |
+
+---
+
+## 4. Calculate modified peptide mass
+
+`calc_modified_mass()` computes the neutral monoisotopic mass of a peptide
+after applying a modification list. Pass an `active_mods` list built by
+`build_active_mods()`, or supply a pre-computed `base_mass` to add a known
+drug-linker adduct mass manually.
+
+```{r mods}
+# Unmodified mass
+base_mass <- calc_peptide_mass("TCPPCPAPELLGGPSVFLFPPK")
+cat("Unmodified mass:", round(base_mass, 4), "Da\n")
+
+# Add DXd drug-linker adduct mass manually (MC-VC-PABC-DXd = 1311.53 Da)
+dxd_adduct  <- 1311.53
+dar1_mass   <- base_mass + dxd_adduct
+cat("DAR1 modified mass:", round(dar1_mass, 4), "Da\n")
+
+# Check conjugation site on a hinge peptide
+cat("Has Cys conjugation site:", has_conjugation_site("TCPPCPAPELLGGPSVFLFPPK",
+                                                        conjugation_type = "cys_thiol"),
+    "\n")
+sites <- detect_conjugation_sites("TCPPCPAPELLGGPSVFLFPPK",
+                                   conjugation_type = "cys_thiol")
+cat("Cys positions:", sites, "\n")
+```
+
+---
+
+## 5. Generate MRM transitions
+
+`generate_transition_list()` produces the full b/y ion series with precursor
+m/z, charge states, and instrument-specific collision energy.
+
+```{r transitions}
+# Run a minimal digest for the transition example
+pep_dt <- digest_fasta_enzyme(fasta_text, enzyme_id = "trypsin",
+                               missed_cleavages = 0L,
+                               min_len = 6L, max_len = 30L)
+
+# Keep three peptides for this example
+pep_sub <- pep_dt[Sequence %in% c("GPSVFPLAPSSR", "ELASGLSFPVGFK",
+                                   "STSGGTAALGCLVK")]
+
+# Add required columns if absent (uniqueness, modification defaults)
+if (!"UniqueToADC"      %in% names(pep_sub)) pep_sub[, UniqueToADC      := TRUE]
+if (!"ModifiedSequence" %in% names(pep_sub)) pep_sub[, ModifiedSequence := Sequence]
+if (!"Modifications"    %in% names(pep_sub)) pep_sub[, Modifications    := ""]
+if (!"NeutralMass"      %in% names(pep_sub))
+  pep_sub[, NeutralMass := sapply(Sequence, calc_peptide_mass)]
+
+tl <- generate_transition_list(
+  peptides_dt = pep_sub,
+  adc_name    = "Trastuzumab-example"
+)
+
+cat("Transitions generated:", nrow(tl), "\n")
+tl[1:6, .(PeptideSequence, PrecursorCharge, PrecursorMz,
+           FragmentIon, ProductMz, CollisionEnergy)]
+```
+
+---
+
+## 6. Export a Skyline-ready CSV
+
+`format_skyline_csv()` converts the transition table to the exact column
+layout expected by Skyline's transition list importer.
+
+```{r skyline}
+sky <- format_skyline_csv(tl)
+cat("Columns:", paste(names(sky), collapse = ", "), "\n")
+cat("Rows:", nrow(sky), "\n")
+
+# Write to temp file and get path back
+tmp <- write_skyline_csv(tl)
+cat("Written to:", tmp, "\n")
+```
+
+---
+
+## 7. Isotope distribution
+
+`calc_isotope_distribution()` uses the Averagine algorithm (Senko 1995) to
+predict the isotope envelope for a peptide sequence.
+
+```{r isotopes}
+iso <- calc_isotope_distribution("GPSVFPLAPSSR", n_isotopes = 5L)
+print(iso)
+
+rec <- recommended_precursor_isotope("GPSVFPLAPSSR")
+cat("Recommended isotope for precursor selection: M+", rec, "\n")
+```
+
+---
+
+## 8. Uniqueness checking
+
+`get_bg_dt()` loads the bundled background proteome and
+`flag_unique_peptides()` marks peptides not found in it.
+
+```{r uniqueness, eval=FALSE}
+# Load human background (bundled with the package)
+bg_human <- get_bg_dt("human", missed_cleavages = 1L)
+
+# Flag uniqueness
+seqs_to_check <- c("STSGGTAALGCLVK", "GPSVFPLAPSSR", "KASQSVDYDGDSFLN")
+flags <- flag_unique_peptides(seqs_to_check, bg = bg_human)
+
+data.frame(Peptide = seqs_to_check, UniqueToHuman = flags)
+```
+
+*(This chunk is not evaluated in the vignette because loading the full
+background database is slow; run it interactively.)*
+
+---
+
+## 9. ADC Design functions
+
+### Linker and payload databases
+
+```{r linkers}
+linkers  <- get_linker_table()
+payloads <- get_payload_table()
+
+cat("Linkers in database:", nrow(linkers), "\n")
+cat("Payloads in database:", nrow(payloads), "\n")
+
+# Top 5 by plasma stability rank
+head(linkers[order(linkers$Stability_rank), c("Name","Type","Stability_rank","t_half_plasma_days")], 5)
+```
+
+### Deconjugation prediction
+
+```{r deconj}
+result <- predict_deconjugation(
+  chemistry   = "Maleimide-thiol (MC-VC-PABC / SMCC)",
+  site        = "Cys-engineered",
+  initial_dar = 8,
+  days        = 21
+)
+
+cat("Linker stability class :", result$stability_class, "\n")
+cat("Plasma deconj t1/2     :", result$t_half, "days\n")
+cat("Days DAR > threshold   :", round(result$days_above_threshold, 1), "\n")
+
+# DAR over time
+curve <- result$curve
+curve$DAR <- round(curve$DAR, 2)
+head(curve[, c("Day", "DAR")], 7)
+```
+
+---
+
+## 10. Target Biology
+
+```{r target-bio}
+her2_intern <- score_internalization("HER2")
+her2_surf   <- assess_surface_accessibility("HER2")
+
+cat("--- HER2 Internalization ---\n")
+cat("Score :", her2_intern$score, "/ 10\n")
+cat("Tier  :", her2_intern$tier, "\n")
+
+cat("\n--- HER2 Surface Accessibility ---\n")
+cat("Score     :", her2_surf$accessibility_score, "/ 100\n")
+cat("Tier      :", her2_surf$accessibility_tier, "\n")
+cat("Shed      :", her2_surf$shed_secreted, "\n")
+```
+
+---
+
+## 11. Antibody Characterization
+
+```{r ab-char}
+# Binding affinity
+ba <- score_binding_affinity(kd_nm = 0.1, kon = 1.2e6, koff = 1.2e-4)
+cat("Affinity tier       :", ba$tier, "\n")
+cat("Residence time (min):", round(ba$residence_time_min, 1), "\n")
+
+# Half-life prediction: wild-type Fc, DAR8
+hl_wt <- predict_halflife(
+  igg_subclass     = "IgG1",
+  fc_mutations     = character(0),
+  dar              = 8,
+  conjugation_site = "Cys-engineered"
+)
+cat("\nWild-type Fc predicted t1/2 :", hl_wt$predicted_halflife, "days\n")
+cat("DAR8 clearance penalty       :", hl_wt$dar_penalty_pct, "%\n")
+
+# With YTE Fc engineering
+hl_yte <- predict_halflife(
+  igg_subclass     = "IgG1",
+  fc_mutations     = "YTE (M252Y/S254T/T256E)",
+  dar              = 8,
+  conjugation_site = "Cys-engineered"
+)
+cat("YTE Fc predicted t1/2        :", hl_yte$predicted_halflife, "days\n")
+
+# Bystander effect
+bs <- score_bystander_effect("DXd")
+cat("\nDXd bystander score :", bs$score, "/ 8  (tier:", bs$tier, ")\n")
+```
+
+---
+
+## 12. PK Simulation
+
+```{r pk-sim}
+pk <- simulate_adc_pk(
+  dose_mg_kg                  = 5.4,
+  bw_kg                       = 70,
+  halflife_days               = hl_wt$predicted_halflife,
+  dar                         = 8,
+  deconjugation_halflife_days = 5.5,
+  days                        = 21
+)
+
+cat("Cmax intact ADC :", round(max(pk$Intact_ADC), 0), "ug/mL\n")
+cat("Day-21 intact ADC:", round(pk$Intact_ADC[nrow(pk)], 0), "ug/mL\n")
+
+head(pk[, c("Day", "Intact_ADC", "Naked_Ab")], 6)
+```
+
+---
+
+## Launch the Shiny app
+
+All of the above can also be done interactively through the 12-tab Shiny
+application:
+
+```{r launch, eval=FALSE}
+ADCPeptideMapper::run_app()
+```
+
+---
+
+## Session info
+
+```{r session}
+sessionInfo()
+```
