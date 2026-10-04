@@ -318,7 +318,7 @@ ui <- bs4DashPage(
                   "Antibody-Drug Conjugate peptide mapping studies."),
                 tags$p(style = "font-size:12px; color:#555;",
                   tags$b("Author: "), "Nishikant Wase, PhD", tags$br(),
-                  tags$b("License: "), "MIT", tags$br(),
+                  tags$b("License: "), "Proprietary — All rights reserved", tags$br(),
                   tags$b("Citation: "),
                   tags$a("10.5281/zenodo.20681412",
                          href = "https://doi.org/10.5281/zenodo.20681412",

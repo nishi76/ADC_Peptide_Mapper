@@ -29,7 +29,7 @@ abstract: >
   (79 tests, 100% pass rate); and sub-mDa mass accuracy benchmarking
   against IgG1 tryptic peptide reference standards.
 type: software
-license: MIT
+license-url: "https://github.com/nishi76/ADC_Peptide_Mapper/blob/main/LICENSE"
 
 authors:
   - family-names: Wase

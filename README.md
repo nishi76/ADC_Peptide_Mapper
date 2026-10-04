@@ -6,7 +6,7 @@
 
 **Live app:** https://nishiw-adc-peptide-mapper.share.connect.posit.cloud/
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20681412.svg)](https://doi.org/10.5281/zenodo.20681412)
 
 ---
@@ -397,7 +397,9 @@ See `CITATION.cff` for full metadata including all 16 scientific references.
 
 ## License
 
-MIT License — see `LICENSE` for details.
+Proprietary — Copyright (c) 2026 Nishikant Wase, PhD. All rights reserved. See `LICENSE` for the full terms.
+
+The source code is proprietary: it may not be used, copied, modified, or redistributed without a written agreement from the copyright holder. The hosted web application is free to use for its intended research purpose under the terms shown with that instance; using it grants no right to the source code. Versions previously released under the MIT License remain under the MIT License for those released versions only.
 
 ---
 

@@ -11,7 +11,7 @@ Description: >
   linker biotransformation variable mods, multi-instrument MRM/DIA transition
   list generation (Skyline, Thermo, SCIEX, Bruker, Agilent, Waters), and
   an AI-powered assistant tab (Anthropic Claude API).
-License: MIT
+License: file LICENSE
 Encoding: UTF-8
 Depends:
   R (>= 4.2.0)
