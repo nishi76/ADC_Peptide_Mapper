@@ -23,20 +23,30 @@ if (requireNamespace("shinycssloaders", quietly = TRUE)) {
   withSpinner <- function(ui, ...) ui
 }
 
-for (.module in c("R/digest.R", "R/modifications.R", "R/uniqueness.R",
-                  "R/transitions.R", "R/export.R", "R/msearch.R",
-                  "R/isotopes.R", "R/dar.R",
-                  "R/adc_design.R", "R/target_biology.R",
-                  "R/antibody_characterization.R")) {
-  tryCatch(
-    source(.module),
-    error = function(e) stop(sprintf(
-      "ADC Peptide Mapper: failed to load '%s'.\n  Error: %s\n  Fix the module and restart.",
-      .module, conditionMessage(e)
-    ))
+if (requireNamespace("ADCPeptideMapper", quietly = TRUE)) {
+  library(ADCPeptideMapper)
+} else {
+  # Development fallback: source modules from the package root
+  .pkg_root <- tryCatch(
+    normalizePath(file.path(dirname(sys.frame(1)$ofile), "..", "..")),
+    error = function(e) getwd()
   )
+  for (.module in c("R/digest.R", "R/modifications.R", "R/uniqueness.R",
+                    "R/transitions.R", "R/export.R", "R/msearch.R",
+                    "R/isotopes.R", "R/dar.R",
+                    "R/adc_design.R", "R/target_biology.R",
+                    "R/antibody_characterization.R")) {
+    .path <- file.path(.pkg_root, .module)
+    tryCatch(
+      source(.path),
+      error = function(e) stop(sprintf(
+        "ADC Peptide Mapper: failed to load '%s'.\n  Error: %s\n  Fix the module and restart.",
+        .path, conditionMessage(e)
+      ))
+    )
+  }
+  rm(.module, .path, .pkg_root)
 }
-rm(.module)
 
 # ── Stubs: active only when R/ helper files are absent ───────────────────
 if (!exists("ENZYME_LABELS"))
