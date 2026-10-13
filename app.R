@@ -3097,9 +3097,20 @@ server <- function(input, output, session) {
     if (is.null(pep_dt) || nrow(pep_dt) == 0)
       return(tags$p(class = "text-muted", style = "font-size:11px;",
                     "Run digest (Tab 3) first to populate peptide list."))
-    choices <- pep_dt$Sequence
-    if (!is.null(pep_dt$ModifiedSequence))
-      choices <- setNames(pep_dt$Sequence, pep_dt$ModifiedSequence)
+    # Use ModifiedSequence + Chain as unique key so every row has a distinct value
+    has_mod <- "ModifiedSequence" %in% names(pep_dt) && !is.null(pep_dt$ModifiedSequence)
+    has_chain <- "Chain" %in% names(pep_dt)
+    if (has_mod && has_chain) {
+      vals  <- paste(pep_dt$Chain, pep_dt$ModifiedSequence, sep = " | ")
+      labs  <- paste0("[", sub(" .*", "", pep_dt$Chain), "] ", pep_dt$ModifiedSequence)
+    } else if (has_mod) {
+      vals  <- pep_dt$ModifiedSequence
+      labs  <- pep_dt$ModifiedSequence
+    } else {
+      vals  <- pep_dt$Sequence
+      labs  <- pep_dt$Sequence
+    }
+    choices <- setNames(vals, labs)
     div(
       div(class = "section-label", "PEPTIDE"),
       selectInput("sv_peptide_seq", NULL,
@@ -3107,13 +3118,35 @@ server <- function(input, output, session) {
     )
   })
 
-  sv_precursor_mz <- reactive({
+  # Parse the composite key back to chain + modified sequence
+  sv_selected_row <- reactive({
     req(input$sv_peptide_seq, rv$peptides_dt)
-    pep_dt <- rv$peptides_dt
-    row    <- pep_dt[pep_dt$Sequence == input$sv_peptide_seq, ]
-    if (nrow(row) == 0) return(NA_real_)
-    mass   <- if ("ModifiedMass" %in% names(row)) row$ModifiedMass[1] else row$Mass[1]
-    (mass + 2 * 1.007276) / 2
+    pep_dt  <- rv$peptides_dt
+    has_chain <- "Chain" %in% names(pep_dt)
+    has_mod   <- "ModifiedSequence" %in% names(pep_dt)
+    if (has_chain && has_mod) {
+      parts <- strsplit(input$sv_peptide_seq, " \\| ", fixed = FALSE)[[1]]
+      if (length(parts) == 2) {
+        chain_sel <- parts[1]; mod_sel <- parts[2]
+        rows <- pep_dt[pep_dt$Chain == chain_sel & pep_dt$ModifiedSequence == mod_sel, ]
+      } else {
+        rows <- pep_dt[seq_len(min(1, nrow(pep_dt))), ]
+      }
+    } else if (has_mod) {
+      rows <- pep_dt[pep_dt$ModifiedSequence == input$sv_peptide_seq, ]
+    } else {
+      rows <- pep_dt[pep_dt$Sequence == input$sv_peptide_seq, ]
+    }
+    if (nrow(rows) == 0) return(NULL)
+    rows[1, ]
+  })
+
+  sv_precursor_mz <- reactive({
+    row <- sv_selected_row()
+    if (is.null(row)) return(NA_real_)
+    mass <- if ("ModifiedMass" %in% names(row)) row$ModifiedMass[1] else row$Mass[1]
+    if (is.null(mass) || is.na(mass)) return(NA_real_)
+    mass
   })
 
   sv_matched   <- reactiveVal(NULL)
@@ -3132,20 +3165,40 @@ server <- function(input, output, session) {
         }
 
         setProgress(0.4, detail = "Finding best scan...")
-        pmz  <- sv_precursor_mz()
-        scan <- find_precursor_scan(idx, pmz, ppm_tol = as.numeric(input$sv_ppm_tol) * 3)
+        neutral_mass <- sv_precursor_mz()  # now returns neutral mass
+        if (is.na(neutral_mass)) {
+          showNotification("Could not determine peptide mass.", type = "warning"); return()
+        }
+
+        # Try z=2 then z=3 then z=1 — pick whichever has the best match
+        ppm_tol_wide <- max(50, as.numeric(input$sv_ppm_tol) * 5)
+        best_scan <- NA_integer_; best_ppm <- Inf; best_z <- 2L
+        for (z in c(2L, 3L, 1L)) {
+          pmz_z <- (neutral_mass + z * 1.007276) / z
+          s <- find_precursor_scan(idx, pmz_z, ppm_tol = ppm_tol_wide)
+          if (!is.na(s)) {
+            actual_ppm <- abs(idx$precursorMZ[idx$seqNum == s] - pmz_z) /
+                          pmz_z * 1e6
+            if (actual_ppm < best_ppm) {
+              best_ppm <- actual_ppm; best_scan <- s; best_z <- z
+            }
+          }
+        }
+        scan <- best_scan
 
         if (is.na(scan)) {
           showNotification(
-            sprintf("No MS2 scan found within %g ppm of m/z %.4f.",
-                    as.numeric(input$sv_ppm_tol) * 3, pmz),
+            sprintf("No MS2 scan found within %g ppm for m/z %.4f (z=2).",
+                    ppm_tol_wide, (neutral_mass + 2*1.007276)/2),
             type = "warning", duration = 8)
           return()
         }
         sv_scan_used(list(
           seqNum = scan,
           rt     = idx$retentionTime[idx$seqNum == scan],
-          prec   = idx$precursorMZ[idx$seqNum == scan]
+          prec   = idx$precursorMZ[idx$seqNum == scan],
+          charge = best_z,
+          ppm    = round(best_ppm, 1)
         ))
 
         setProgress(0.6, detail = "Extracting peaks...")
@@ -3155,7 +3208,9 @@ server <- function(input, output, session) {
         }
 
         setProgress(0.8, detail = "Annotating ions...")
-        seq_bare <- gsub("\\[.*?\\]", "", input$sv_peptide_seq)
+        row      <- sv_selected_row()
+        seq_bare <- if (!is.null(row)) row$Sequence[1] else
+                    gsub("\\[.*?\\]", "", input$sv_peptide_seq)
         ions_dt  <- calc_fragment_ions(seq_bare)
         matched  <- match_ions(ions_dt, spec_df, ppm_tol = as.numeric(input$sv_ppm_tol))
         sv_matched(matched)
