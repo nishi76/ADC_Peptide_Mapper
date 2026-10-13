@@ -10,6 +10,7 @@
 #' @importFrom shinyjs useShinyjs
 #' @importFrom stringr str_detect
 #' @importFrom ggplot2 ggplot
+#' @importFrom plotly plot_ly layout renderPlotly plotlyOutput
 "_PACKAGE"
 
 utils::globalVariables(c(
