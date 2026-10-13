@@ -27,7 +27,8 @@ for (.module in c("R/digest.R", "R/modifications.R", "R/uniqueness.R",
                   "R/transitions.R", "R/export.R", "R/msearch.R",
                   "R/isotopes.R", "R/dar.R",
                   "R/adc_design.R", "R/target_biology.R",
-                  "R/antibody_characterization.R")) {
+                  "R/antibody_characterization.R",
+                  "R/spectrum_viewer.R")) {
   tryCatch(
     source(.module),
     error = function(e) stop(sprintf(
@@ -811,6 +812,46 @@ ui <- bs4DashPage(
                   "PSM counts per detected modification type (from filtered PSM table)."),
                 withSpinner(plotOutput("mod_summary_plot", height = "320px"),
                             type = 6, color = "#2980b9")
+              ),
+              tabPanel("Spectrum Viewer",
+                br(),
+                tags$p(style = "color:#555; font-size:12px;",
+                  "Upload an mzML file, select a peptide from the digest table, ",
+                  "and visualize the matched b/y ion series against the observed spectrum."),
+                fluidRow(
+                  column(width = 4,
+                    div(class = "section-label", "MZML FILE"),
+                    fileInput("sv_mzml_file", NULL,
+                      accept = c(".mzML", ".mzml"),
+                      placeholder = "Upload mzML file"),
+                    uiOutput("sv_peptide_selector_ui"),
+                    numericInput("sv_ppm_tol", "Match tolerance (ppm)",
+                      value = 10, min = 1, max = 50, step = 1),
+                    actionButton("sv_match_btn", "Match & Plot",
+                      class = "btn-primary", style = "width:100%; margin-top:8px;"),
+                    br(), br(),
+                    uiOutput("sv_scan_info_ui")
+                  ),
+                  column(width = 8,
+                    withSpinner(plotly::plotlyOutput("sv_spectrum_plot", height = "420px"),
+                                type = 6, color = "#2980b9"),
+                    br(),
+                    uiOutput("sv_sequence_map_ui"),
+                    br(),
+                    div(style = "font-size:11px; color:#777;",
+                      tags$b("Legend: "),
+                      tags$span(style="color:#2196F3; font-weight:bold;", "Blue = b-ions"),
+                      " | ",
+                      tags$span(style="color:#e53935; font-weight:bold;", "Red = y-ions"),
+                      " | ",
+                      tags$span(style="color:#90CAF9;", "Light blue = b neutral loss"),
+                      " | ",
+                      tags$span(style="color:#EF9A9A;", "Pink = y neutral loss"),
+                      " | ",
+                      tags$span(style="color:#aaa;", "Grey = unmatched")
+                    )
+                  )
+                )
               )
             )
           )
@@ -3036,6 +3077,183 @@ server <- function(input, output, session) {
               main = "Detected Modifications",
               cex.names = 0.85)
     }
+  })
+
+  # ── Spectrum Viewer (Tab 6 sub-panel) ─────────────────────────────────────
+
+  sv_mzml_index <- reactive({
+    req(input$sv_mzml_file)
+    tryCatch({
+      read_mzml_index(input$sv_mzml_file$datapath)
+    }, error = function(e) {
+      showNotification(paste("mzML read error:", conditionMessage(e)),
+                       type = "error", duration = 10)
+      NULL
+    })
+  })
+
+  output$sv_peptide_selector_ui <- renderUI({
+    pep_dt <- rv$peptides_dt
+    if (is.null(pep_dt) || nrow(pep_dt) == 0)
+      return(tags$p(class = "text-muted", style = "font-size:11px;",
+                    "Run digest (Tab 3) first to populate peptide list."))
+    choices <- pep_dt$Sequence
+    if (!is.null(pep_dt$ModifiedSequence))
+      choices <- setNames(pep_dt$Sequence, pep_dt$ModifiedSequence)
+    div(
+      div(class = "section-label", "PEPTIDE"),
+      selectInput("sv_peptide_seq", NULL,
+                  choices = choices, selectize = TRUE)
+    )
+  })
+
+  sv_precursor_mz <- reactive({
+    req(input$sv_peptide_seq, rv$peptides_dt)
+    pep_dt <- rv$peptides_dt
+    row    <- pep_dt[pep_dt$Sequence == input$sv_peptide_seq, ]
+    if (nrow(row) == 0) return(NA_real_)
+    mass   <- if ("ModifiedMass" %in% names(row)) row$ModifiedMass[1] else row$Mass[1]
+    (mass + 2 * 1.007276) / 2
+  })
+
+  sv_matched   <- reactiveVal(NULL)
+  sv_scan_used <- reactiveVal(NULL)
+
+  observeEvent(input$sv_match_btn, {
+    req(input$sv_mzml_file, input$sv_peptide_seq, rv$peptides_dt)
+
+    withProgress(message = "Matching spectrum...", value = 0, {
+      tryCatch({
+        setProgress(0.2, detail = "Reading mzML index...")
+        idx <- sv_mzml_index()
+        if (is.null(idx) || nrow(idx) == 0) {
+          showNotification("No MS2 scans found in mzML file.", type = "warning")
+          return()
+        }
+
+        setProgress(0.4, detail = "Finding best scan...")
+        pmz  <- sv_precursor_mz()
+        scan <- find_precursor_scan(idx, pmz, ppm_tol = as.numeric(input$sv_ppm_tol) * 3)
+
+        if (is.na(scan)) {
+          showNotification(
+            sprintf("No MS2 scan found within %g ppm of m/z %.4f.",
+                    as.numeric(input$sv_ppm_tol) * 3, pmz),
+            type = "warning", duration = 8)
+          return()
+        }
+        sv_scan_used(list(
+          seqNum = scan,
+          rt     = idx$retentionTime[idx$seqNum == scan],
+          prec   = idx$precursorMZ[idx$seqNum == scan]
+        ))
+
+        setProgress(0.6, detail = "Extracting peaks...")
+        spec_df <- extract_scan(input$sv_mzml_file$datapath, scan)
+        if (nrow(spec_df) == 0) {
+          showNotification("Scan is empty.", type = "warning"); return()
+        }
+
+        setProgress(0.8, detail = "Annotating ions...")
+        seq_bare <- gsub("\\[.*?\\]", "", input$sv_peptide_seq)
+        ions_dt  <- calc_fragment_ions(seq_bare)
+        matched  <- match_ions(ions_dt, spec_df, ppm_tol = as.numeric(input$sv_ppm_tol))
+        sv_matched(matched)
+
+        setProgress(1, detail = "Done!")
+        n_matched <- sum(matched$matched)
+        showNotification(
+          sprintf("%d / %d peaks annotated (scan #%d, RT %.2f min)",
+                  n_matched, nrow(matched), scan,
+                  sv_scan_used()$rt / 60),
+          type = "message", duration = 5)
+      }, error = function(e) {
+        showNotification(paste("Spectrum viewer error:", conditionMessage(e)),
+                         type = "error", duration = 10)
+      })
+    })
+  })
+
+  output$sv_spectrum_plot <- plotly::renderPlotly({
+    df <- sv_matched()
+    if (is.null(df))
+      return(plotly::plot_ly() |>
+               plotly::layout(
+                 annotations = list(list(
+                   text = "Upload an mzML file and click 'Match & Plot'",
+                   x = 0.5, y = 0.5, xref = "paper", yref = "paper",
+                   showarrow = FALSE, font = list(size = 14, color = "#aaa")
+                 )),
+                 xaxis = list(visible = FALSE),
+                 yaxis = list(visible = FALSE)
+               ))
+
+    scan_info <- sv_scan_used()
+    pmz <- if (!is.null(scan_info)) scan_info$prec else NA_real_
+
+    plot_annotated_spectrum(
+      matched_df       = df,
+      peptide_seq      = input$sv_peptide_seq %||% "",
+      precursor_mz     = pmz,
+      precursor_charge = 2L
+    )
+  })
+
+  output$sv_scan_info_ui <- renderUI({
+    info <- sv_scan_used()
+    if (is.null(info)) return(NULL)
+    df <- sv_matched()
+    n_b <- if (!is.null(df)) sum(df$matched & df$ion_series == "b", na.rm = TRUE) else 0
+    n_y <- if (!is.null(df)) sum(df$matched & df$ion_series == "y", na.rm = TRUE) else 0
+    tags$div(
+      style = "background:#f0f4f8; border-radius:6px; padding:10px; font-size:11px;",
+      tags$b("Scan info"), tags$br(),
+      sprintf("Scan #%d | RT: %.2f min", info$seqNum, info$rt / 60), tags$br(),
+      sprintf("Precursor m/z: %.4f", info$prec), tags$br(),
+      tags$span(style="color:#2196F3;", sprintf("b-ions matched: %d", n_b)), tags$br(),
+      tags$span(style="color:#e53935;", sprintf("y-ions matched: %d", n_y))
+    )
+  })
+
+  output$sv_sequence_map_ui <- renderUI({
+    df <- sv_matched()
+    req(!is.null(df), input$sv_peptide_seq)
+    seq_bare <- gsub("\\[.*?\\]", "", input$sv_peptide_seq %||% "")
+    if (nchar(seq_bare) == 0) return(NULL)
+
+    ions_dt  <- tryCatch(calc_fragment_ions(seq_bare), error = function(e) NULL)
+    if (is.null(ions_dt)) return(NULL)
+
+    matched_labels <- df$ion_label[df$matched & !is.na(df$ion_label)]
+    L   <- nchar(seq_bare)
+    aas <- strsplit(seq_bare, "")[[1]]
+
+    matched_b <- unique(ions_dt$ion_number[ions_dt$ion_type == "b" &
+                                             ions_dt$label %in% matched_labels])
+    matched_y <- unique(ions_dt$ion_number[ions_dt$ion_type == "y" &
+                                             ions_dt$label %in% matched_labels])
+
+    aa_spans <- lapply(seq_along(aas), function(i) {
+      b_cov <- i %in% matched_b
+      y_cov <- (L - i) %in% matched_y
+      style <- "display:inline-block; width:22px; text-align:center; font-size:13px;
+                font-family:monospace; border-radius:3px; margin:1px; padding:2px 0;"
+      if (b_cov && y_cov)
+        style <- paste0(style, "background:#9C27B0; color:white; font-weight:bold;")
+      else if (b_cov)
+        style <- paste0(style, "background:#2196F3; color:white;")
+      else if (y_cov)
+        style <- paste0(style, "background:#e53935; color:white;")
+      else
+        style <- paste0(style, "background:#eee; color:#333;")
+      tags$span(style = style, aas[i])
+    })
+
+    tagList(
+      tags$div(style = "font-size:11px; color:#555; margin-bottom:4px;",
+               tags$b("Sequence coverage map"), " (blue=b, red=y, purple=both)"),
+      tags$div(style = "line-height:2; word-break:break-all;", aa_spans)
+    )
   })
 
   # ── Download handlers ──────────────────────────────────────────────────────

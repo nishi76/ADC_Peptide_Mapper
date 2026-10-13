@@ -62,7 +62,7 @@ for (sp in INCLUDE_SPECIES) {
 
 # ── Dependency check ──────────────────────────────────────────────────────────
 required_pkgs <- c("shiny", "bs4Dash", "DT", "data.table", "openxlsx",
-                   "httr2", "stringr", "dplyr", "shinyjs")
+                   "httr2", "stringr", "dplyr", "shinyjs", "plotly", "mzR")
 missing <- required_pkgs[!sapply(required_pkgs, requireNamespace, quietly = TRUE)]
 if (length(missing) > 0L) {
   cat("Installing missing packages:", paste(missing, collapse=", "), "\n")
