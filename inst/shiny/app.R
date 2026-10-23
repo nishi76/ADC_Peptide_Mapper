@@ -16,6 +16,7 @@ library(httr2)
 library(stringr)
 library(dplyr)
 library(shinyjs)
+library(plotly)
 
 if (requireNamespace("shinycssloaders", quietly = TRUE)) {
   library(shinycssloaders)
