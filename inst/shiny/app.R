@@ -226,6 +226,10 @@ ui <- bs4DashPage(
         tabName = "tab_search", icon = icon("circle")
       ),
       bs4SidebarMenuItem(
+        tagList(tags$span(class = "step-num-badge", "6A"), "Spectrum Viewer"),
+        tabName = "tab_spectrum", icon = icon("circle")
+      ),
+      bs4SidebarMenuItem(
         tagList(tags$span(class = "step-num-badge", "7"), "MRM Assessment"),
         tabName = "tab_mrm", icon = icon("circle")
       ),
@@ -863,6 +867,98 @@ ui <- bs4DashPage(
                 )
               )
             )
+          )
+        )
+      ),
+
+      # ── TAB 6A: SPECTRUM VIEWER ──────────────────────────────────────────
+      bs4TabItem(tabName = "tab_spectrum",
+        fluidRow(
+          column(width = 12,
+            div(class = "tab-header",
+              div(class = "stage-chip", "Raw File Analysis"),
+              tags$h4(style = "margin:0; font-weight:700; color:#2c3e50;",
+                "Spectrum Viewer"),
+              tags$p(style = "color:#666; font-size:12px; margin:4px 0 0;",
+                "Load an mzML file to browse the chromatogram and inspect MS2 spectra. ",
+                "Select a peptide from the digest to overlay fragment ion annotations.")
+            )
+          )
+        ),
+        fluidRow(
+          # ── Left control panel ──────────────────────────────────────────
+          column(width = 3,
+            div(
+              div(class = "section-label", "RAW FILE"),
+              fileInput("sv2_upload", NULL,
+                accept = c(".mzML", ".mzml", ".mzXML"),
+                placeholder = "Upload mzML / mzXML"),
+              div(style = "color:#888; font-size:11px; text-align:center; margin:-8px 0 5px;",
+                "—  or specify a local path  —"),
+              textInput("sv2_local_path", NULL,
+                placeholder = "/path/to/file.mzML",
+                value = "/Users/nishikantwase/Downloads/MetID_DMPK_ADME_suit/raw_MS_Files/Avr80uM_Rep1_t180.mzML"),
+              actionButton("sv2_load_btn", "Load File",
+                class = "btn-primary btn-sm",
+                style = "width:100%; margin-bottom:8px;"),
+              uiOutput("sv2_file_status_ui"),
+
+              tags$hr(style = "margin:8px 0;"),
+
+              div(class = "section-label", "PEPTIDES"),
+              checkboxInput("sv2_unique_only", "Unique sequences only", value = TRUE),
+              uiOutput("sv2_peptide_selector_ui"),
+              actionButton("sv2_match_btn", "Match & View",
+                class = "btn-success btn-sm",
+                icon  = icon("crosshairs"),
+                style = "width:100%; margin-top:6px;"),
+
+              tags$hr(style = "margin:8px 0;"),
+
+              div(class = "section-label", "ION MATCHING"),
+              numericInput("sv2_ppm_tol", "Tolerance (ppm)",
+                value = 10, min = 1, max = 100, step = 1),
+
+              tags$hr(style = "margin:8px 0;"),
+
+              div(class = "section-label", "SCAN DETAILS"),
+              uiOutput("sv2_scan_info_ui")
+            )
+          ),
+
+          # ── Main visualization area ──────────────────────────────────────
+          column(width = 9,
+            # TIC / BPC panel
+            div(
+              div(class = "section-label",
+                "BASE PEAK CHROMATOGRAM",
+                tags$span(
+                  style = "font-size:10px; font-weight:normal; color:#999; margin-left:8px;",
+                  "click triangle markers to load MS2 spectrum"
+                )
+              ),
+              withSpinner(
+                plotly::plotlyOutput("sv2_tic_plot", height = "260px"),
+                type = 6, color = "#2980b9"
+              )
+            ),
+            br(),
+            # MS2 spectrum panel
+            div(
+              div(class = "section-label",
+                "MS2 SPECTRUM",
+                tags$span(
+                  style = "font-size:10px; font-weight:normal; color:#999; margin-left:8px;",
+                  uiOutput("sv2_spectrum_subtitle", inline = TRUE)
+                )
+              ),
+              withSpinner(
+                plotly::plotlyOutput("sv2_ms2_plot", height = "470px"),
+                type = 6, color = "#2980b9"
+              )
+            ),
+            br(),
+            uiOutput("sv2_seq_map_ui")
           )
         )
       ),
@@ -3086,6 +3182,354 @@ server <- function(input, output, session) {
               main = "Detected Modifications",
               cex.names = 0.85)
     }
+  })
+
+  # ── Spectrum Viewer – Tab 6A (full standalone tab) ────────────────────────
+
+  sv2_mzml_path    <- reactiveVal(NULL)
+  sv2_full_index   <- reactiveVal(NULL)
+  sv2_selected     <- reactiveVal(NULL)
+  sv2_match_result <- reactiveVal(NULL)
+
+  # Helper: load mzML file and populate reactive state
+  .sv2_load_file <- function(path) {
+    if (!file.exists(path))
+      return(showNotification(paste("File not found:", path), type = "error"))
+    withProgress(message = "Loading mzML...", value = 0.3, {
+      tryCatch({
+        idx <- read_mzml_full_index(path)
+        sv2_full_index(idx)
+        sv2_mzml_path(path)
+        sv2_selected(NULL)
+        sv2_match_result(NULL)
+        showNotification(
+          sprintf("Loaded: %d MS1 + %d MS2 scans  |  %.1f min run",
+                  sum(idx$msLevel == 1), sum(idx$msLevel == 2),
+                  max(idx$rt_min, na.rm = TRUE)),
+          type = "message", duration = 5)
+      }, error = function(e) {
+        showNotification(paste("Load error:", conditionMessage(e)),
+                         type = "error", duration = 10)
+      })
+    })
+  }
+
+  # Auto-load default path when the tab is first activated
+  observeEvent(input$sidebar_menu, {
+    if (input$sidebar_menu == "tab_spectrum" && is.null(sv2_full_index())) {
+      def <- trimws(isolate(input$sv2_local_path))
+      if (nchar(def) > 0 && file.exists(def)) .sv2_load_file(def)
+    }
+  })
+
+  # Manual Load button
+  observeEvent(input$sv2_load_btn, {
+    path <- NULL
+    up <- input$sv2_upload
+    if (!is.null(up) && nchar(up$datapath) > 0) {
+      path <- up$datapath
+    } else {
+      lp <- trimws(input$sv2_local_path)
+      if (nchar(lp) > 0) path <- lp
+    }
+    req(path)
+    .sv2_load_file(path)
+  })
+
+  # Auto-load on file upload
+  observeEvent(input$sv2_upload, {
+    req(input$sv2_upload)
+    .sv2_load_file(input$sv2_upload$datapath)
+  })
+
+  # File status badge
+  output$sv2_file_status_ui <- renderUI({
+    idx <- sv2_full_index()
+    if (is.null(idx)) {
+      tags$p(style = "color:#aaa; font-size:11px; margin-top:4px;",
+             "No file loaded.")
+    } else {
+      n1 <- sum(idx$msLevel == 1); n2 <- sum(idx$msLevel == 2)
+      rt <- round(max(idx$rt_min, na.rm = TRUE), 1)
+      tags$p(style = "color:#27ae60; font-size:11px; margin-top:4px;",
+             icon("check-circle"),
+             sprintf(" %d MS1  |  %d MS2  |  %.1f min", n1, n2, rt))
+    }
+  })
+
+  # Peptide selector with unique-only filter
+  sv2_pep_choices <- reactive({
+    pep_dt <- rv$peptides_dt
+    if (is.null(pep_dt) || nrow(pep_dt) == 0) return(NULL)
+    has_mod   <- "ModifiedSequence" %in% names(pep_dt)
+    has_chain <- "Chain" %in% names(pep_dt)
+    if (isTRUE(input$sv2_unique_only)) {
+      # Deduplicate: keep first row per bare Sequence
+      seen <- character(0)
+      keep <- vapply(seq_len(nrow(pep_dt)), function(i) {
+        seq_i <- pep_dt$Sequence[i]
+        if (seq_i %in% seen) return(FALSE)
+        seen <<- c(seen, seq_i)
+        TRUE
+      }, logical(1))
+      pep_dt <- pep_dt[keep, ]
+    }
+    if (has_mod && has_chain) {
+      vals <- paste(pep_dt$Chain, pep_dt$ModifiedSequence, sep = " | ")
+      labs <- paste0("[", sub(" .*", "", pep_dt$Chain), "] ", pep_dt$ModifiedSequence)
+    } else if (has_mod) {
+      vals <- pep_dt$ModifiedSequence; labs <- pep_dt$ModifiedSequence
+    } else {
+      vals <- pep_dt$Sequence; labs <- pep_dt$Sequence
+    }
+    setNames(vals, labs)
+  })
+
+  output$sv2_peptide_selector_ui <- renderUI({
+    ch <- sv2_pep_choices()
+    if (is.null(ch))
+      return(tags$p(class = "text-muted", style = "font-size:11px;",
+                    "Run digest (Tab 3) first."))
+    selectInput("sv2_pep_sel", NULL, choices = ch, selectize = TRUE)
+  })
+
+  # Parse selected peptide key → row in peptides_dt
+  sv2_pep_row <- reactive({
+    req(input$sv2_pep_sel, rv$peptides_dt)
+    pep_dt <- rv$peptides_dt
+    has_chain <- "Chain" %in% names(pep_dt)
+    has_mod   <- "ModifiedSequence" %in% names(pep_dt)
+    if (has_chain && has_mod) {
+      parts <- strsplit(input$sv2_pep_sel, " \\| ")[[1]]
+      if (length(parts) == 2)
+        rows <- pep_dt[pep_dt$Chain == parts[1] & pep_dt$ModifiedSequence == parts[2], ]
+      else rows <- pep_dt[seq_len(min(1, nrow(pep_dt))), ]
+    } else if (has_mod) {
+      rows <- pep_dt[pep_dt$ModifiedSequence == input$sv2_pep_sel, ]
+    } else {
+      rows <- pep_dt[pep_dt$Sequence == input$sv2_pep_sel, ]
+    }
+    if (nrow(rows) == 0) return(NULL)
+    rows[1, ]
+  })
+
+  # All MS2 scans matching the selected peptide's precursor m/z (for TIC highlight)
+  sv2_matched_scans <- reactive({
+    req(sv2_full_index())
+    pep_row <- sv2_pep_row()
+    if (is.null(pep_row)) return(NULL)
+    mass <- if ("ModifiedMass" %in% names(pep_row)) pep_row$ModifiedMass[1] else pep_row$Mass[1]
+    if (is.null(mass) || is.na(mass)) return(NULL)
+    ms2_rows <- sv2_full_index()[sv2_full_index()$msLevel == 2L, ]
+    ppm_tol <- max(50, as.numeric(input$sv2_ppm_tol) * 3)
+    scans <- integer(0)
+    for (z in c(2L, 3L, 1L)) {
+      pmz <- (mass + z * 1.007276) / z
+      err <- abs(ms2_rows$precursorMZ - pmz) / pmz * 1e6
+      scans <- c(scans, ms2_rows$seqNum[!is.na(err) & err <= ppm_tol])
+    }
+    unique(scans)
+  })
+
+  # Internal helper: load scan, match ions, store result
+  .sv2_load_scan <- function(scan_num) {
+    req(sv2_mzml_path(), sv2_full_index())
+    path <- sv2_mzml_path()
+    idx  <- sv2_full_index()
+    withProgress(message = "Loading spectrum...", value = 0.5, {
+      tryCatch({
+        spec_df <- extract_scan(path, scan_num)
+        if (is.null(spec_df) || nrow(spec_df) == 0) {
+          showNotification("Scan is empty.", type = "warning"); return()
+        }
+        pep_row  <- isolate(sv2_pep_row())
+        if (!is.null(pep_row)) {
+          ions_dt <- calc_fragment_ions(pep_row$Sequence[1])
+          matched <- match_ions(ions_dt, spec_df,
+                                ppm_tol = as.numeric(isolate(input$sv2_ppm_tol)))
+          seq_bare <- pep_row$Sequence[1]
+        } else {
+          spec_df$matched    <- FALSE
+          spec_df$ion_label  <- NA_character_
+          spec_df$ion_series <- NA_character_
+          matched  <- spec_df
+          seq_bare <- ""
+        }
+        hdr <- idx[idx$seqNum == scan_num, ]
+        sv2_match_result(list(
+          matched_df       = matched,
+          seq_bare         = seq_bare,
+          precursor_mz     = if (nrow(hdr) > 0) hdr$precursorMZ[1]     else NA_real_,
+          precursor_charge = if (nrow(hdr) > 0) as.integer(hdr$precursorCharge[1]) else NA_integer_,
+          rt_min           = if (nrow(hdr) > 0) hdr$rt_min[1]          else NA_real_,
+          scan_num         = scan_num,
+          n_matched        = if (!is.null(pep_row)) sum(matched$matched) else 0L,
+          n_peaks          = nrow(matched)
+        ))
+      }, error = function(e) {
+        showNotification(paste("Spectrum error:", conditionMessage(e)),
+                         type = "error", duration = 8)
+      })
+    })
+  }
+
+  # TIC click → select nearest MS2 scan
+  observeEvent(plotly::event_data("plotly_click", source = "sv2_tic"), {
+    click <- plotly::event_data("plotly_click", source = "sv2_tic")
+    req(click, sv2_full_index())
+    idx <- sv2_full_index()
+    ms2_rows <- idx[idx$msLevel == 2L, ]
+    if (nrow(ms2_rows) == 0) return()
+    cd <- click$customdata
+    scan_num <- if (!is.null(cd) && !is.na(cd[1]) && length(cd) > 0) {
+      as.integer(cd[1])
+    } else {
+      rt_click <- as.numeric(click$x[1])
+      ms2_rows$seqNum[which.min(abs(ms2_rows$rt_min - rt_click))]
+    }
+    sv2_selected(scan_num)
+    .sv2_load_scan(scan_num)
+  }, ignoreNULL = TRUE)
+
+  # Match & View button → find best scan for selected peptide
+  observeEvent(input$sv2_match_btn, {
+    req(sv2_full_index())
+    pep_row <- sv2_pep_row()
+    if (is.null(pep_row)) {
+      showNotification("Select a peptide first.", type = "warning"); return()
+    }
+    mass <- if ("ModifiedMass" %in% names(pep_row)) pep_row$ModifiedMass[1] else pep_row$Mass[1]
+    if (is.null(mass) || is.na(mass)) {
+      showNotification("Peptide mass not available.", type = "warning"); return()
+    }
+    ms2_rows <- sv2_full_index()[sv2_full_index()$msLevel == 2L, ]
+    ppm_wide <- max(50, as.numeric(input$sv2_ppm_tol) * 5)
+    best_scan <- NA_integer_; best_ppm <- Inf; best_z <- 2L
+    for (z in c(2L, 3L, 1L)) {
+      pmz <- (mass + z * 1.007276) / z
+      err <- abs(ms2_rows$precursorMZ - pmz) / pmz * 1e6
+      bi  <- which.min(err)
+      if (length(bi) && err[bi] <= ppm_wide && err[bi] < best_ppm) {
+        best_ppm <- err[bi]; best_scan <- ms2_rows$seqNum[bi]; best_z <- z
+      }
+    }
+    if (is.na(best_scan)) {
+      showNotification(
+        sprintf("No scan found within %g ppm for %s.",
+                ppm_wide, pep_row$Sequence[1]),
+        type = "warning", duration = 8)
+      return()
+    }
+    sv2_selected(best_scan)
+    .sv2_load_scan(best_scan)
+    showNotification(
+      sprintf("Best match: scan #%d  %.1f ppm  z=%d",
+              best_scan, best_ppm, best_z),
+      type = "message", duration = 4)
+  })
+
+  # TIC plot
+  output$sv2_tic_plot <- renderPlotly({
+    req(sv2_full_index())
+    plot_tic(sv2_full_index(),
+             selected_scan  = sv2_selected(),
+             matched_scans  = sv2_matched_scans(),
+             source_id      = "sv2_tic")
+  })
+
+  # MS2 spectrum plot
+  output$sv2_ms2_plot <- renderPlotly({
+    res <- sv2_match_result()
+    if (is.null(res) || is.null(res$matched_df)) {
+      return(plotly::plot_ly() |>
+        plotly::layout(
+          title = list(text = "No spectrum loaded — click a triangle on the chromatogram",
+                       font = list(size = 12, color = "#aaa")),
+          xaxis = list(visible = FALSE), yaxis = list(visible = FALSE),
+          plot_bgcolor = "#fafafa", paper_bgcolor = "#fafafa"
+        ))
+    }
+    plot_ms2_spectrum(
+      res$matched_df,
+      peptide_seq      = res$seq_bare,
+      precursor_mz     = res$precursor_mz,
+      precursor_charge = res$precursor_charge,
+      scan_rt          = res$rt_min,
+      label_threshold  = 3
+    )
+  })
+
+  # Subtitle above MS2 panel
+  output$sv2_spectrum_subtitle <- renderUI({
+    res <- sv2_match_result()
+    if (is.null(res)) return(NULL)
+    tags$span(sprintf("scan #%d  |  RT %.2f min  |  %d/%d peaks matched",
+                      res$scan_num, res$rt_min,
+                      res$n_matched, res$n_peaks))
+  })
+
+  # Scan info sidebar
+  output$sv2_scan_info_ui <- renderUI({
+    res <- sv2_match_result()
+    if (is.null(res))
+      return(tags$p(style = "color:#aaa; font-size:11px;", "No scan selected."))
+    z_str <- if (!is.na(res$precursor_charge)) paste0("+", res$precursor_charge) else "?"
+    tags$div(style = "font-size:11px; line-height:1.9;",
+      tags$div(tags$b("Scan #: "),   res$scan_num),
+      tags$div(tags$b("RT: "),        sprintf("%.3f min", res$rt_min)),
+      tags$div(tags$b("Prec m/z: "),  if (!is.na(res$precursor_mz))
+                                          sprintf("%.4f", res$precursor_mz) else "—"),
+      tags$div(tags$b("Charge: "),    z_str),
+      tags$div(tags$b("Matched: "),   sprintf("%d / %d peaks", res$n_matched, res$n_peaks))
+    )
+  })
+
+  # Sequence coverage tiles (reuse logic from Tab 6 sub-panel)
+  output$sv2_seq_map_ui <- renderUI({
+    res <- sv2_match_result()
+    if (is.null(res) || nchar(res$seq_bare) == 0) return(NULL)
+    df  <- res$matched_df
+    seq <- res$seq_bare
+    aas <- strsplit(seq, "")[[1]]
+    n   <- length(aas)
+    b_matched <- integer(0); y_matched <- integer(0)
+    for (i in seq_len(nrow(df))) {
+      if (!df$matched[i] || is.na(df$ion_label[i])) next
+      lbl <- df$ion_label[i]
+      if (grepl("^b(\\d+)", lbl)) {
+        num <- as.integer(sub("^b(\\d+).*", "\\1", lbl))
+        if (!is.na(num)) b_matched <- c(b_matched, num)
+      } else if (grepl("^y(\\d+)", lbl)) {
+        num <- as.integer(sub("^y(\\d+).*", "\\1", lbl))
+        if (!is.na(num)) y_matched <- c(y_matched, num)
+      }
+    }
+    tiles <- lapply(seq_len(n), function(i) {
+      b_cov <- i %in% b_matched
+      y_cov <- (n - i) %in% y_matched
+      bg <- if (b_cov && y_cov) "#7B1FA2"
+            else if (b_cov) "#1565C0"
+            else if (y_cov) "#B71C1C"
+            else "#e0e0e0"
+      tc <- if (b_cov || y_cov) "#ffffff" else "#555"
+      tags$span(style = sprintf(
+        "display:inline-block; width:22px; height:22px; line-height:22px;
+         text-align:center; font-size:10px; font-weight:600; border-radius:3px;
+         margin:1px; background:%s; color:%s;", bg, tc),
+        aas[i])
+    })
+    tagList(
+      div(class = "section-label", "SEQUENCE COVERAGE"),
+      div(style = "margin-bottom:6px; font-size:10px; color:#777;",
+        tags$span(style="display:inline-block;width:12px;height:12px;background:#1565C0;border-radius:2px;vertical-align:middle; margin-right:4px;"),
+        "b-ions  ",
+        tags$span(style="display:inline-block;width:12px;height:12px;background:#B71C1C;border-radius:2px;vertical-align:middle; margin-right:4px; margin-left:8px;"),
+        "y-ions  ",
+        tags$span(style="display:inline-block;width:12px;height:12px;background:#7B1FA2;border-radius:2px;vertical-align:middle; margin-right:4px; margin-left:8px;"),
+        "both"
+      ),
+      div(style = "line-height:1.4;", tiles)
+    )
   })
 
   # ── Spectrum Viewer (Tab 6 sub-panel) ─────────────────────────────────────

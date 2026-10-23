@@ -214,3 +214,250 @@ find_precursor_scan <- function(mzml_index, target_mz, charge = NA_integer_,
   best    <- which.min(ppm_err)
   if (ppm_err[best] <= ppm_tol) mzml_index$seqNum[best] else NA_integer_
 }
+
+# ── Full-run index & TIC ─────────────────────────────────────────────────────
+
+#' @title Read full mzML scan index (MS1 + MS2)
+#' @description Returns a data.frame with one row per scan for all MS levels,
+#'   suitable for building a TIC/BPC chromatogram and navigating the raw file.
+#'
+#' @param path Character. Path to an mzML file.
+#' @return data.frame with columns seqNum, msLevel, rt_min, totIonCurrent,
+#'   basePeakMZ, basePeakIntensity, precursorMZ, precursorCharge, peaksCount.
+#' @export
+read_mzml_full_index <- function(path) {
+  if (!requireNamespace("mzR", quietly = TRUE))
+    stop("mzR is required. Install via: BiocManager::install('mzR')")
+  ms <- mzR::openMSfile(path)
+  on.exit(mzR::close(ms))
+  h <- mzR::header(ms)
+  data.frame(
+    seqNum            = h$seqNum,
+    msLevel           = h$msLevel,
+    rt_min            = h$retentionTime / 60,
+    totIonCurrent     = h$totIonCurrent,
+    basePeakMZ        = h$basePeakMZ,
+    basePeakIntensity = h$basePeakIntensity,
+    precursorMZ       = ifelse(h$msLevel > 1L, h$precursorMZ,      NA_real_),
+    precursorCharge   = ifelse(h$msLevel > 1L, h$precursorCharge,  NA_integer_),
+    precursorScanNum  = ifelse(h$msLevel > 1L, h$precursorScanNum, NA_integer_),
+    peaksCount        = h$peaksCount,
+    stringsAsFactors  = FALSE
+  )
+}
+
+#' @title Plot base-peak chromatogram with MS2 scan markers
+#' @description Builds an interactive plotly BPC/TIC trace. MS2 events are
+#'   drawn as triangle markers at y = 0. Clicking any point selects that
+#'   region. A vertical dashed line marks the selected scan.
+#'
+#' @param tic_df data.frame. Output of \code{read_mzml_full_index()}.
+#' @param selected_scan Integer or NULL. seqNum of the currently selected scan.
+#' @param matched_scans Integer vector or NULL. seqNums to highlight in red.
+#' @param source_id Character. Plotly source id for click events.
+#' @return A plotly figure object.
+#' @export
+plot_tic <- function(tic_df, selected_scan = NULL, matched_scans = NULL,
+                     source_id = "sv2_tic") {
+  if (!requireNamespace("plotly", quietly = TRUE))
+    stop("plotly is required.")
+
+  ms1 <- tic_df[tic_df$msLevel == 1L, ]
+  ms2 <- tic_df[tic_df$msLevel == 2L, ]
+
+  bpi_max <- max(ms1$basePeakIntensity, na.rm = TRUE)
+  if (!is.finite(bpi_max) || bpi_max == 0) bpi_max <- 1
+  ms1$bpi_norm <- ms1$basePeakIntensity / bpi_max * 100
+
+  # MS2 triangle colours
+  ms2_col <- rep("rgba(150,150,150,0.30)", nrow(ms2))
+  if (!is.null(matched_scans) && length(matched_scans) > 0)
+    ms2_col[ms2$seqNum %in% matched_scans] <- "rgba(231,76,60,0.75)"
+  if (!is.null(selected_scan) && !is.na(selected_scan) && length(selected_scan) > 0)
+    ms2_col[ms2$seqNum == selected_scan] <- "#c0392b"
+
+  fig <- plotly::plot_ly(source = source_id) |>
+    plotly::add_trace(
+      data = ms1, x = ~rt_min, y = ~bpi_norm,
+      type = "scatter", mode = "lines",
+      line = list(color = "#2980b9", width = 1.5),
+      name = "BPC", showlegend = FALSE,
+      hovertemplate = "RT: %{x:.2f} min | BPI: %{text}<extra></extra>",
+      text = format(ms1$basePeakIntensity, scientific = TRUE, digits = 3)
+    ) |>
+    plotly::add_trace(
+      data = ms2, x = ~rt_min, y = rep(0, nrow(ms2)),
+      type = "scatter", mode = "markers",
+      marker = list(symbol = "triangle-up", size = 7, color = ms2_col,
+                    line = list(width = 0)),
+      customdata = ms2$seqNum,
+      name = "MS2", showlegend = FALSE,
+      hovertemplate = paste0(
+        "Scan #%{customdata}<br>",
+        "RT: %{x:.2f} min<br>",
+        "Prec: %{text} m/z<extra></extra>"
+      ),
+      text = round(ms2$precursorMZ, 4)
+    )
+
+  shapes <- list()
+  if (!is.null(selected_scan) && !is.na(selected_scan) && length(selected_scan) > 0) {
+    sel_row <- tic_df[tic_df$seqNum == selected_scan, ]
+    if (nrow(sel_row) > 0)
+      shapes <- list(list(
+        type = "line",
+        x0 = sel_row$rt_min[1], x1 = sel_row$rt_min[1],
+        y0 = 0, y1 = 1, yref = "paper",
+        line = list(color = "#c0392b", dash = "dash", width = 1.5)
+      ))
+  }
+
+  fig |> plotly::layout(
+    xaxis  = list(title = "Retention Time (min)", showgrid = FALSE, zeroline = FALSE),
+    yaxis  = list(title = "BPC (% max)", range = c(-8, 110),
+                  showgrid = TRUE, gridcolor = "#f0f0f0", zeroline = FALSE),
+    margin = list(l = 60, r = 15, t = 12, b = 45),
+    plot_bgcolor  = "#ffffff",
+    paper_bgcolor = "#ffffff",
+    shapes = shapes
+  )
+}
+
+#' @title Plot annotated MS2 spectrum (publication style)
+#' @description Vertical-stick plot with colour-coded b/y ion series and
+#'   rotated text labels above major annotated peaks. Suitable for the
+#'   dedicated Spectrum Viewer tab.
+#'
+#' @param matched_df data.frame. Output of \code{match_ions()}.
+#' @param peptide_seq Character. Bare amino acid sequence for title.
+#' @param precursor_mz Numeric. Observed precursor m/z.
+#' @param precursor_charge Integer. Precursor charge state.
+#' @param scan_rt Numeric. Retention time in minutes.
+#' @param label_threshold Numeric. Minimum relative intensity (0-100) for a
+#'   matched peak to receive a visible label (default 3).
+#' @return A plotly figure object.
+#' @export
+plot_ms2_spectrum <- function(matched_df, peptide_seq = "",
+                               precursor_mz     = NA_real_,
+                               precursor_charge = NA_integer_,
+                               scan_rt          = NA_real_,
+                               label_threshold  = 3) {
+  if (!requireNamespace("plotly", quietly = TRUE))
+    stop("plotly is required.")
+
+  df <- matched_df
+  if (nrow(df) == 0)
+    return(plotly::plot_ly() |> plotly::layout(title = "No peaks in spectrum"))
+
+  # Classify series
+  df$series <- "unmatched"
+  df$series[df$matched & df$ion_series == "b" & !grepl("(-H2O|-NH3)$", df$ion_label)] <- "b"
+  df$series[df$matched & df$ion_series == "y" & !grepl("(-H2O|-NH3)$", df$ion_label)] <- "y"
+  df$series[df$matched & df$ion_series == "b" &  grepl("(-H2O|-NH3)$", df$ion_label)] <- "b_loss"
+  df$series[df$matched & df$ion_series == "y" &  grepl("(-H2O|-NH3)$", df$ion_label)] <- "y_loss"
+
+  col_map <- c(
+    "b"         = "#1a73e8",
+    "y"         = "#d93025",
+    "b_loss"    = "#93c4f5",
+    "y_loss"    = "#f5a3a3",
+    "unmatched" = "#c8c8c8"
+  )
+  lbl_col_map <- c(
+    "b" = "#1565c0", "y" = "#b71c1c",
+    "b_loss" = "#1565c0", "y_loss" = "#b71c1c",
+    "unmatched" = "#aaaaaa"
+  )
+  legend_names <- c(
+    "b" = "b-ions", "y" = "y-ions",
+    "b_loss" = "b-H₂O/NH₃",
+    "y_loss" = "y-H₂O/NH₃",
+    "unmatched" = "Unmatched"
+  )
+
+  # Title
+  prec_str <- if (!is.na(precursor_mz)) {
+    z_str <- if (!is.na(precursor_charge)) sprintf("+%d", as.integer(precursor_charge)) else "?"
+    sprintf("%.4f (%s)", precursor_mz, z_str)
+  } else NULL
+  rt_str <- if (!is.na(scan_rt)) sprintf("RT %.2f min", scan_rt) else NULL
+  pep_str <- if (nchar(trimws(peptide_seq)) > 0) peptide_seq else NULL
+  title_str <- paste(c(pep_str, prec_str, rt_str), collapse = "  |  ")
+  if (nchar(title_str) == 0) title_str <- "MS2 Spectrum"
+
+  # Build traces (vertical sticks per series group)
+  series_order <- c("unmatched", "b_loss", "y_loss", "b", "y")
+  fig <- plotly::plot_ly()
+
+  for (ser in series_order) {
+    sdf <- df[df$series == ser, ]
+    if (nrow(sdf) == 0) next
+
+    # Vertical stick: (mz,0) → (mz, intensity) → NA per peak
+    mz_v  <- as.vector(rbind(sdf$mz, sdf$mz, NA))
+    int_v <- as.vector(rbind(rep(0, nrow(sdf)), sdf$rel_intensity, NA))
+
+    lw <- if (ser == "unmatched") 1 else 1.6
+    fig <- plotly::add_trace(fig,
+      x = mz_v, y = int_v,
+      type = "scatter", mode = "lines",
+      line = list(color = col_map[ser], width = lw),
+      name = legend_names[ser],
+      showlegend = (ser != "unmatched"),
+      legendgroup = ser,
+      hoverinfo = "skip"
+    )
+
+    # Invisible hover points at peak tips
+    hover_text <- sprintf(
+      "<b>Ion:</b> %s<br><b>m/z:</b> %.4f<br><b>Rel. Int.:</b> %.1f%%",
+      ifelse(is.na(sdf$ion_label), "—", sdf$ion_label),
+      sdf$mz, sdf$rel_intensity
+    )
+    fig <- plotly::add_trace(fig,
+      x = sdf$mz, y = sdf$rel_intensity,
+      type = "scatter", mode = "markers",
+      marker = list(size = 8, opacity = 0, color = col_map[ser]),
+      name = legend_names[ser],
+      showlegend = FALSE,
+      legendgroup = ser,
+      text = hover_text,
+      hovertemplate = "%{text}<extra></extra>"
+    )
+  }
+
+  # On-chart labels for major matched peaks
+  ann_df <- df[df$matched & !is.na(df$ion_label) &
+               df$rel_intensity >= label_threshold, ]
+  ann_list <- if (nrow(ann_df) > 0) {
+    lapply(seq_len(nrow(ann_df)), function(i) {
+      list(
+        x         = ann_df$mz[i],
+        y         = ann_df$rel_intensity[i],
+        text      = ann_df$ion_label[i],
+        showarrow = FALSE,
+        xanchor   = "center",
+        yanchor   = "bottom",
+        textangle = -90,
+        font      = list(size = 9, color = lbl_col_map[ann_df$series[i]]),
+        yshift    = 4
+      )
+    })
+  } else list()
+
+  fig |> plotly::layout(
+    title  = list(text = title_str, font = list(size = 12), x = 0.02, xanchor = "left"),
+    xaxis  = list(title = "m/z", showgrid = FALSE, zeroline = FALSE),
+    yaxis  = list(
+      title     = "Relative Intensity (%)",
+      range     = c(0, 125),
+      showgrid  = TRUE, gridcolor = "#f0f0f0", zeroline = FALSE
+    ),
+    legend = list(orientation = "h", x = 0.5, xanchor = "center",
+                  y = -0.13, font = list(size = 10)),
+    margin        = list(l = 65, r = 15, t = 50, b = 65),
+    plot_bgcolor  = "#ffffff",
+    paper_bgcolor = "#ffffff",
+    annotations   = ann_list
+  )
+}
