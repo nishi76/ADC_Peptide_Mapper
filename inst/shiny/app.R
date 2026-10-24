@@ -18,6 +18,10 @@ library(dplyr)
 library(shinyjs)
 library(plotly)
 
+# Raise Shiny's upload cap (default 5 MB) so large mzML / mzXML / MGF files load.
+# Override with the ADC_MAX_UPLOAD_GB environment variable if needed.
+options(shiny.maxRequestSize = as.numeric(Sys.getenv("ADC_MAX_UPLOAD_GB", "2")) * 1024^3)
+
 if (requireNamespace("shinycssloaders", quietly = TRUE)) {
   library(shinycssloaders)
 } else {
